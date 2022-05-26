@@ -17,6 +17,9 @@ ext_args = 'c[cu]' if jt.has_cuda else 'cc'
 files = glob.glob(jtorch_path+"/src/**/*."+ext_args, recursive=True)
 files += pyjt_gen_src
 cc_flags = " -I\""+os.path.join(jtorch_path, "src")+"\" "
+if os.environ.get("use_data_o", "1") == "1":
+    files += glob.glob(jtorch_path+"/src/**/*.o", recursive=True)
+    files = [f for f in files if "__data__" not in f]
 
 
 jt.compiler.compile(
