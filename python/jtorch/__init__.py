@@ -50,6 +50,11 @@ Var.retain_grad = property(retain_grad_get, retain_grad_set)
 from . import autograd
 from .autograd import *
 
+def ndimension(self):
+    return self.ndim
+Var.ndimension = ndimension
+
+
 Tensor = Var
 tensor = wrapper(array)
 
@@ -76,3 +81,17 @@ def make_module(cls):
 import jtorch.nn
 from jtorch.nn import Module, Parameter
 import jtorch.optim
+
+from jtorch.utils.dtype import Dtype, get_string_dtype
+
+def frombuffer(buffer: bytearray, 
+              *, 
+              dtype: Dtype, 
+              count: int = -1, 
+              offset: int = 0, 
+              requires_grad: bool = True) -> Tensor:
+    dtype = get_string_dtype(dtype)
+    tensor = jt.array(np.frombuffer(buffer, dtype, count=count, offset=offset))
+    if requires_grad and tensor.dtype.is_float():
+        tensor.requires_grad = True
+    return tensor
