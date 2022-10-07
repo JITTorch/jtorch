@@ -47,10 +47,15 @@ class DataLoader(JDataset):
             if value:
                 jt.LOG.w(f"Not implemented Dataloader kwarg: {kwarg}")
 
+        self.dataset = dataset
         self.collate_fn = collate_fn
+        self.total_len = len(dataset)
         
     def collate_batch(self, batch):
         if self.collate_fn is not None:
             return self.collate_fn(batch)
         else:
             return super().collate_batch(batch)
+
+    def __getitem__(self, i):
+        return self.dataset[i]
