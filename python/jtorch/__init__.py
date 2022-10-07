@@ -46,13 +46,23 @@ for k,v in list(globals().items()):
 Var.backward = lambda x: jtorch_core.backward(x)
 Var.grad = property(grad_get, grad_set, grad_del)
 Var.retain_grad = property(retain_grad_get, retain_grad_set)
+Var.to = lambda self, device: self
+Var.ndimension = lambda self: self.ndim
+
+def argmax(x: Var, dim=None, keepdim: bool = False):
+    return jt.argmax(x, dim, keepdim)[0]
+Var.argmax = argmax
+
+def tensor_type(x: Var, dtype=None, **kwargs):
+    if dtype:
+        return x.astype(dtype)
+    else:
+        return x.dtype
+Var.type = tensor_type
 
 from . import autograd
 from .autograd import *
 
-def ndimension(self):
-    return self.ndim
-Var.ndimension = ndimension
 
 
 Tensor = Var
@@ -78,6 +88,7 @@ def make_module(cls):
             return self.execute(*args, **kw)
     return TMod
 
+import jtorch.cuda
 import jtorch.nn
 from jtorch.nn import Module, Parameter
 import jtorch.optim

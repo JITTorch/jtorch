@@ -10,6 +10,7 @@ def load_mod(name):
     exec("import "+name)
     return eval(name)
 
+sys.modules["torch.cuda"] = load_mod("jtorch.cuda")
 sys.modules["torch.nn"] = load_mod("jtorch.nn")
 sys.modules["torch.utils"] = load_mod("jtorch.utils")
 sys.modules["torch.utils.data"] = load_mod("jtorch.utils.data")
