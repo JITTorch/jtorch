@@ -43,29 +43,33 @@ for k,v in list(globals().items()):
         except:
             pass
 
-Var.backward = lambda x: jtorch_core.backward(x)
-Var.grad = property(grad_get, grad_set, grad_del)
-Var.retain_grad = property(retain_grad_get, retain_grad_set)
-Var.to = lambda self, device: self
-Var.ndimension = lambda self: self.ndim
+Tensor = Var
+
+Tensor.backward = lambda x: jtorch_core.backward(x)
+Tensor.grad = property(grad_get, grad_set, grad_del)
+Tensor.retains_grad = property(retain_grad_get, retain_grad_set)
+def retain_grad(x:Tensor, value:bool=True):
+    x.retains_grad = value
+    return value
+Tensor.retain_grad = retain_grad
+
+Tensor.to = lambda self, device: self
+Tensor.ndimension = lambda self: self.ndim
 
 def argmax(x: Var, dim=None, keepdim: bool = False):
     return jt.argmax(x, dim, keepdim)[0]
-Var.argmax = argmax
+Tensor.argmax = argmax
 
 def tensor_type(x: Var, dtype=None, **kwargs):
     if dtype:
         return x.astype(dtype)
     else:
         return x.dtype
-Var.type = tensor_type
+Tensor.type = tensor_type
 
 from . import autograd
 from .autograd import *
 
-
-
-Tensor = Var
 tensor = wrapper(array)
 
 def mod_zero_grad(self):
@@ -81,7 +85,7 @@ def make_module(cls):
             for k,v in self.__dict__.items():
                 if not k.startswith("_") and isinstance(v, Var) \
                     and v.requires_grad:
-                    v.retain_grad = True
+                    v.retain_grad()
         def __call__(self, *args, **kw):
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):

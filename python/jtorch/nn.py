@@ -18,7 +18,7 @@ class Module(jt.Module):
 def Parameter(x:Tensor, requires_grad:bool=True) -> Tensor:
     x = x.clone()
     x.requires_grad = requires_grad
-    x.retain_grad = requires_grad
+    x.retains_grad = requires_grad
     return x
 
 
