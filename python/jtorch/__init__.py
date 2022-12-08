@@ -11,7 +11,7 @@ from jtorch_core import *
 
 def wrapper(func):
     def inner(*args, **kw):
-        requires_grad = False
+        requires_grad = None
         dtype = None
         if "requires_grad" in kw:
             requires_grad = kw["requires_grad"]
@@ -22,7 +22,8 @@ def wrapper(func):
         if "device" in kw:
             del kw["device"]
         ret = func(*args, **kw)
-        ret.requires_grad = requires_grad
+        if requires_grad is not None:
+            ret.requires_grad = requires_grad
         if dtype is not None:
             ret.astype(dtype)
         return ret

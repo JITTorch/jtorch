@@ -13,5 +13,12 @@ class TestMisc(unittest.TestCase):
         net.load_state_dict({"a": torch.Tensor([3.0, 4.0])})
         assert(net.a.requires_grad)
 
+    def test_reshape(self):
+        a = torch.ones(3,3)
+        a.requires_grad = True
+        b = torch.reshape(a, [9])
+        assert b.requires_grad == True
+
+
 if __name__ == "__main__":
     unittest.main()

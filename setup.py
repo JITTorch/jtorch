@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="jtorch",
-    version="0.0.7",
+    version="0.0.8",
     author="jtorch",
     author_email="jtorch@qq.com",
     description="jtorch project",
