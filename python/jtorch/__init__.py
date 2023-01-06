@@ -3,6 +3,9 @@ os.environ["FIX_TORCH_ERROR"] = "0"
 
 import jittor as jt
 from jittor import *
+int = type(1)
+float = type(1.0)
+bool = type(True)
 
 import jtorch.compiler
 
@@ -111,3 +114,44 @@ def frombuffer(buffer: bytearray,
     if requires_grad and tensor.dtype.is_float():
         tensor.requires_grad = True
     return tensor
+
+def conflict_wrapper(origin_func, new_func):
+    def wrapper(*args, **kw):
+        if jt.flags.th_mode:
+            return new_func(*args, **kw)
+        else:
+            return origin_func(*args, **kw)
+    return wrapper
+
+def min(*args, **kw):
+    dim = None
+    if len(args) >= 2 and isinstance(args[1], int):
+        dim = args[1]
+    elif "dim" in kw and isinstance(kw["dim"], int):
+        dim = kw["dim"]
+    if dim is not None:
+        k, v = jt.argmin(*args, **kw)
+        return v, k
+    else:
+        return jt.min(*args, **kw)
+Tensor.min = conflict_wrapper(jt.min, min)
+
+def max(*args, **kw):
+    dim = None
+    if "dim" in kw:
+        x = kw["dim"]
+    if len(args) >= 2 and isinstance(args[1], int):
+        dim = args[1]
+    elif "dim" in kw and isinstance(kw["dim"], int):
+        dim = kw["dim"]
+    if dim is not None:
+        k, v = jt.argmax(*args, **kw)
+        return v, k
+    else:
+        return jt.max(*args, **kw)
+Tensor.max = conflict_wrapper(jt.max, max)
+
+def argsort(*args, **kw):
+    k, v = jt.argsort(*args, **kw)
+    return k
+Tensor.argsort = conflict_wrapper(jt.argsort, argsort)
