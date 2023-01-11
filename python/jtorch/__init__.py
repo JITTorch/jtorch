@@ -57,7 +57,7 @@ def retain_grad(x:Tensor, value:bool=True):
     return value
 Tensor.retain_grad = retain_grad
 
-Tensor.to = lambda self, device: self
+Tensor.to = lambda self, device, non_blocking=False: self
 Tensor.ndimension = lambda self: self.ndim
 
 def argmax(x: Var, dim=None, keepdim: bool = False):
@@ -96,13 +96,16 @@ def make_module(cls):
             return self.execute(*args, **kw)
     return TMod
 
-import jtorch.cuda
+import jtorch.cuda as cuda
 import jtorch.nn
+import jtorch._six
 from jtorch.nn import Module, Parameter
 import jtorch.optim
+import jtorch.distributed as distributed
+import jtorch.jit as jit
+
 
 from jtorch.utils.dtype import Dtype, get_string_dtype
-
 def frombuffer(buffer: bytearray, 
               *, 
               dtype: Dtype, 
@@ -151,7 +154,29 @@ def max(*args, **kw):
         return jt.max(*args, **kw)
 Tensor.max = conflict_wrapper(jt.max, max)
 
+Tensor.mul_ = jt.multiply_
+
 def argsort(*args, **kw):
     k, v = jt.argsort(*args, **kw)
     return k
 Tensor.argsort = conflict_wrapper(jt.argsort, argsort)
+
+def clamp_(*args, **kw):
+    new_kw = {}
+    if "min" in kw:
+        new_kw["min_v"] = kw["min"]
+    if "max" in kw:
+        new_kw["max_v"] = kw["max"]
+    return jt.clamp_(*args,**new_kw) 
+Tensor.clamp_ = conflict_wrapper(jt.clamp_, clamp_)
+Tensor.eq = jt.Var.equal
+cat = jt.concat
+
+def manual_seed(seed):
+    jt.set_global_seed(seed)
+
+def load_(*args, **kw):
+    return jt.load(args[0])
+
+load = conflict_wrapper(jt.load, load_)
+
