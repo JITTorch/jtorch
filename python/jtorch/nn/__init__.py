@@ -51,6 +51,10 @@ class Module(jt.Module):
             for p in self.parameters():
                 if id(p) in self.backup_grad_state and self.backup_grad_state[id(p)]:
                     p.start_grad()
+    
+    def cuda():
+        # or just return directly?
+        jt.flags.use_cuda = 1
 
 def Parameter(x:Tensor, requires_grad:bool=True) -> Tensor:
     x = x.clone()

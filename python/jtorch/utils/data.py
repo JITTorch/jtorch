@@ -14,7 +14,7 @@ class Dataset:
 class DataLoader(JDataset):
     def __init__(self, dataset: Dataset, 
                  batch_size: Optional[int] = 1,
-                 shuffle: Optional[bool] = None, 
+                 shuffle: Optional[bool] = False, 
                  sampler = None,
                  batch_sampler = None,
                  num_workers: int = 0, 
@@ -50,8 +50,9 @@ class DataLoader(JDataset):
 
         self.dataset = dataset
         self.collate_fn = collate_fn
-        self.total_len = len(dataset)
-        
+        self.total_len = 50000
+        self.dataset.set_attrs(shuffle=shuffle)
+
     def collate_batch(self, batch):
         if self.collate_fn is not None:
             return self.collate_fn(batch)

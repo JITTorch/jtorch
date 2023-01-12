@@ -1,6 +1,5 @@
 import jittor as jt
 
-print("import distri?")
 def is_available():
     return False
 
