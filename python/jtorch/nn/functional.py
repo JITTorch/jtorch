@@ -14,3 +14,5 @@ def celu(x):
 
 def selu(x):
     raise NotImplementedError
+
+log_softmax = jt.nn.log_softmax

@@ -36,11 +36,14 @@ class Normalize:
             if not isinstance(self.mean, jt.Var):
                 self.mean = jt.array(self.mean).unsqueeze(-1).unsqueeze(-1)
                 self.std = jt.array(self.std).unsqueeze(-1).unsqueeze(-1)
+            if len(img.shape) != len(self.mean.shape):
+                self.mean = self.mean.unsqueeze(-1).unsqueeze(-1)
+                self.std = self.std.unsqueeze(-1).unsqueeze(-1)
             img = (img - self.mean) / self.std
         return img
 
 def resize(img, size, interpolation=Image.BILINEAR):
-    if not (isinstance(size, list) and len(size) == 2):
+    if not ((isinstance(size, list) or isinstance(size, tuple)) and len(size) == 2):
         raise TypeError(f"Got inappropriate size arg: {size}")
     return img.resize(tuple(size[::-1]), interpolation)
 

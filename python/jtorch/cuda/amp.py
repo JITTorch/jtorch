@@ -52,7 +52,15 @@ class GradScaler(object):
         return
     
     def step(self, optimizer):
+        optimizer.n_step += 1
+        optimizer.step()
         return
     
     def update(self):
         return
+    
+    def scale(self, loss):
+        return loss
+    
+    def state_dict(self):
+        return None

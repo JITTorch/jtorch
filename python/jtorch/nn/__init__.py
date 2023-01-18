@@ -38,23 +38,27 @@ class Module(jt.Module):
                 self.backup_grad_state[id(p)] = not p.is_stop_grad()
             p.stop_grad()
     
-    def train(self):
+    def train(self, enable_train=True):
         ''' Sets the module in training mode. '''
         def callback(parents, k, v, n):
             if isinstance(v, Module):
-                v.is_train = True
-                v.training = True
-        self.dfs([], None, callback, None)
+                v.is_train = enable_train
+                v.training = enable_train
+        if enable_train:
+            self.dfs([], None, callback, None)
 
-        # backup stop grad or not
-        if hasattr(self, "backup_grad_state"):
-            for p in self.parameters():
-                if id(p) in self.backup_grad_state and self.backup_grad_state[id(p)]:
-                    p.start_grad()
+            # backup stop grad or not
+            if hasattr(self, "backup_grad_state"):
+                for p in self.parameters():
+                    if id(p) in self.backup_grad_state and self.backup_grad_state[id(p)]:
+                        p.start_grad()
     
     def cuda():
         # or just return directly?
         jt.flags.use_cuda = 1
+    
+    def load_state_dict(self, params, strict=False) -> None:
+        self.load_parameters(params)
 
 def Parameter(x:Tensor, requires_grad:bool=True) -> Tensor:
     x = x.clone()
@@ -184,3 +188,4 @@ class ModuleDict(Module):
                 # modules can be Mapping (what it's typed at), or a list: [(name1, module1), (name2, module2)]
                 # that's too cumbersome to type correctly with overloads, so we add an ignore here
                 self[m[0]] = m[1]  # type: ignore[assignment]
+

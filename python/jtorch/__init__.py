@@ -49,7 +49,7 @@ for k,v in list(globals().items()):
 
 Tensor = Var
 
-Tensor.backward = lambda x: jtorch_core.backward(x)
+Tensor.backward = lambda x, create_graph=False: jtorch_core.backward(x)
 Tensor.grad = property(grad_get, grad_set, grad_del)
 Tensor.retains_grad = property(retain_grad_get, retain_grad_set)
 def retain_grad(x:Tensor, value:bool=True):
@@ -57,6 +57,7 @@ def retain_grad(x:Tensor, value:bool=True):
     return value
 Tensor.retain_grad = retain_grad
 
+Tensor.device = None
 Tensor.to = lambda self, device, non_blocking=False: self
 Tensor.ndimension = lambda self: self.ndim
 
@@ -180,3 +181,23 @@ def load_(*args, **kw):
 
 load = conflict_wrapper(jt.load, load_)
 
+def empty(shape, dtype, device=None):
+    return jt.empty(shape, dtype)
+
+def rand(shape, dtype, device=None):
+    return jt.rand(shape, dtype)
+
+def normal_(x, mean=0, std=1):
+    return (x - mean) / std
+
+def __floor(x):
+    return x.floor
+
+def div_(x, y):
+    if isinstance(y, jt.Var):
+        return jt.divide(x, y)
+    return x / y
+
+Tensor.floor_ = __floor
+Tensor.normal_ = normal_
+Tensor.div = div_

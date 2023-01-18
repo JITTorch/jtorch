@@ -7,3 +7,6 @@ def is_available():
 def max_memory_allocated():
     # no effect?
     return jt.MemInfo().total_cuda_ram
+
+def synchronize():
+    jt.sync_all()
