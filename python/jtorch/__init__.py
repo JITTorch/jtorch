@@ -3,9 +3,9 @@ os.environ["FIX_TORCH_ERROR"] = "0"
 
 import jittor as jt
 from jittor import *
-int = type(1)
-float = type(1.0)
-bool = type(True)
+org_int = int = type(1)
+org_float = float = type(1.0)
+org_bool = bool = type(True)
 
 import jtorch.compiler
 
@@ -13,13 +13,16 @@ import jtorch_core
 from jtorch_core import *
 
 def wrapper(func):
+    has_dtype = False
+    if hasattr(func, "__code__"):
+        has_dtype = "dtype" in func.__code__.co_varnames
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
         if "requires_grad" in kw:
             requires_grad = kw["requires_grad"]
             del kw["requires_grad"]
-        if "dtype" in kw:
+        if not has_dtype and "dtype" in kw:
             dtype = kw["dtype"]
             del kw["dtype"]
         if "device" in kw:
@@ -59,6 +62,9 @@ Tensor.retain_grad = retain_grad
 
 Tensor.to = lambda self, device: self
 Tensor.ndimension = lambda self: self.ndim
+def device_get(x:Tensor):
+    return device("cpu") if not jt.has_cuda or not jt.flags.use_cuda else device("cuda")
+Tensor.device = property(device_get)
 
 def argmax(x: Var, dim=None, keepdim: bool = False):
     return jt.argmax(x, dim, keepdim)[0]
@@ -81,19 +87,30 @@ def mod_zero_grad(self):
         p.grad = None
 Module.zero_grad = mod_zero_grad
 
+class ModuleMisc:
+    def parameters(self):
+        return iter(super().parameters())
+
 def make_module(cls):
-    class TMod(cls):
+    class TMod(ModuleMisc, cls):
         def __init__(self, *args, **kw):
+            dtype = None
+            if "dtype" in kw:
+                dtype = kw["dtype"]
+                del kw["dtype"]
             with jt.flag_scope(th_mode=0):
                 super().__init__(*args, **kw)
             for k,v in self.__dict__.items():
                 if not k.startswith("_") and isinstance(v, Var) \
                     and v.requires_grad:
                     v.retain_grad()
+                if dtype is not None and isinstance(v, Var):
+                    v.assign(v.cast(dtype))
         def __call__(self, *args, **kw):
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):
             return self.execute(*args, **kw)
+    TMod.__name__ = cls.__name__
     return TMod
 
 import jtorch.cuda
@@ -125,9 +142,9 @@ def conflict_wrapper(origin_func, new_func):
 
 def min(*args, **kw):
     dim = None
-    if len(args) >= 2 and isinstance(args[1], int):
+    if len(args) >= 2 and isinstance(args[1], org_int):
         dim = args[1]
-    elif "dim" in kw and isinstance(kw["dim"], int):
+    elif "dim" in kw and isinstance(kw["dim"], org_int):
         dim = kw["dim"]
     if dim is not None:
         k, v = jt.argmin(*args, **kw)
@@ -140,9 +157,9 @@ def max(*args, **kw):
     dim = None
     if "dim" in kw:
         x = kw["dim"]
-    if len(args) >= 2 and isinstance(args[1], int):
+    if len(args) >= 2 and isinstance(args[1], org_int):
         dim = args[1]
-    elif "dim" in kw and isinstance(kw["dim"], int):
+    elif "dim" in kw and isinstance(kw["dim"], org_int):
         dim = kw["dim"]
     if dim is not None:
         k, v = jt.argmax(*args, **kw)
@@ -155,3 +172,34 @@ def argsort(*args, **kw):
     k, v = jt.argsort(*args, **kw)
     return k
 Tensor.argsort = conflict_wrapper(jt.argsort, argsort)
+
+LongTensor = jt.int64
+FloatTensor = jt.float
+BoolTensor = jt.bool
+
+class JDType:
+    def __init__(self, func, str):
+        self.func = func
+        self.str = str
+        self.__name__ = str.split(".")[-1]
+    def __call__(self, *args, **kw):
+        return self.func(*args, **kw)
+    def __str__(self):
+        return self.str
+
+int8 = JDType(jt.int8, "torch.int8")
+int16 = JDType(jt.int16, "torch.int16")
+int = int32 = JDType(jt.int32, "torch.int32")
+long = int64 = JDType(jt.int64, "torch.int64")
+
+half = float16 = JDType(jt.float16, "torch.float16")
+float = float32 = JDType(jt.float32, "torch.float32")
+double = float64 = JDType(jt.float64, "torch.float64")
+bfloat16 = "bfloat16" # TODO
+
+def load(path, map_location="cpu"):
+    print("load from path", path)
+    return jt.load(path)
+
+def is_tensor(x):
+    return isinstance(x, Tensor)
