@@ -12,6 +12,7 @@ import jtorch.compiler
 import jtorch_core
 from jtorch_core import *
 
+
 def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
