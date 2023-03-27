@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="jtorch",
-    version="0.0.9",
+    version="0.0.10",
     author="jtorch",
     author_email="jtorch@qq.com",
     description="jtorch project",
@@ -24,6 +24,6 @@ setuptools.setup(
     package_data={'': ['*', '*/*', '*/*/*','*/*/*/*','*/*/*/*/*','*/*/*/*/*/*']},
     python_requires=">=3.7",
     install_requires=[
-        "jittor>=1.3.6.10",
+        "jittor>=1.3.6.14",
     ],
 )
