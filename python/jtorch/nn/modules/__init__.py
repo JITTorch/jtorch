@@ -1,9 +1,13 @@
 import jittor as jt
 
+from jtorch import ModuleMisc
 
-class Module(jt.Module):
+class Module(ModuleMisc, jt.Module):
     def __init__(self, *args, **kw) -> None:
         super(Module, self).__init__(*args, **kw)
+
+    def execute(self, *args, **kw):
+        return self.forward(*args, **kw)
 
     def __call__(self, *args, **kw):
         return self.forward(*args, **kw)
