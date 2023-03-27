@@ -11,6 +11,7 @@ def load_mod(name):
     exec("import "+name)
     return eval(name)
 
+autograd = sys.modules["torch.autograd"] = load_mod("jtorch.autograd")
 sys.modules["torch.cuda"] = load_mod("jtorch.cuda")
 sys.modules["torch.nn"] = load_mod("jtorch.nn")
 sys.modules["torch.nn.functional"] = load_mod("jtorch.nn")
@@ -18,10 +19,13 @@ sys.modules["torch.nn.utils"] = load_mod("jtorch.nn")
 jtorch.nn.functional = jtorch.nn
 sys.modules["torch.utils"] = load_mod("jtorch.utils")
 sys.modules["torch.utils.data"] = load_mod("jtorch.utils.data")
-sys.modules["torch.utils.checkpoint"] = load_mod("jtorch.utils")
+sys.modules["torch.utils.checkpoint"] = load_mod("jtorch.utils.checkpoint")
 
-sys.modules["torch.distributed"] = load_mod("jtorch.distributed")
+distributed = sys.modules["torch.distributed"] = load_mod("jtorch.distributed")
+sys.modules["torch.nn.parallel"] = load_mod("jtorch.distributed")
+sys.modules["torch.nn.parallel.distributed"] = load_mod("jtorch.distributed")
 _C = sys.modules["torch._C"] = load_mod("jtorch.misc")
+_six = sys.modules["torch._six"] = load_mod("jtorch.misc")
 jit = sys.modules["torch.jit"] = load_mod("jtorch.misc")
 
 sys.modules["torchvision"] = load_mod("jtorch.vision")

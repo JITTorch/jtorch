@@ -51,6 +51,11 @@ for k,v in list(globals().items()):
         except:
             pass
 
+def empty(*size, dtype=jt.float32, device=None, requires_grad=False):
+    if len(size) == 1 and not isinstance(size[0], org_int):
+        size = size[0]
+    return jt.empty(size, dtype)
+
 Tensor = Var
 
 Tensor.backward = lambda x: jtorch_core.backward(x)
@@ -62,7 +67,10 @@ def retain_grad(x:Tensor, value:bool=True):
 Tensor.retain_grad = retain_grad
 
 Tensor.to = lambda self, device: self
+Tensor.dim = lambda self: self.ndim
 Tensor.ndimension = lambda self: self.ndim
+Tensor.nelement = lambda self: self.numel()
+Tensor.cuda = lambda self: self
 def device_get(x:Tensor):
     return device("cpu") if not jt.has_cuda or not jt.flags.use_cuda else device("cuda")
 Tensor.device = property(device_get)
@@ -111,6 +119,22 @@ def make_module(cls):
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):
             return self.execute(*args, **kw)
+        def load_state_dict(self, state_dict, strict=False):
+            return super().load_state_dict(state_dict)
+        def to(self, device):
+            return self
+        def cuda(self, device):
+            return self
+        
+        @property
+        def training(self):
+            if not hasattr(self, "is_train"):
+                self.is_train = True
+            return self.is_train
+        @training.setter
+        def training(self, value):
+            self.is_train = value
+
     TMod.__name__ = cls.__name__
     return TMod
 
@@ -176,6 +200,7 @@ Tensor.argsort = conflict_wrapper(jt.argsort, argsort)
 
 LongTensor = jt.int64
 FloatTensor = jt.float
+HalfTensor = jt.float16
 BoolTensor = jt.bool
 
 class JDType:
@@ -204,3 +229,13 @@ def load(path, map_location="cpu"):
 
 def is_tensor(x):
     return isinstance(x, Tensor)
+
+def baddbmm(input, batch1, batch2, *, beta=1, alpha=1, out=None):
+    return beta * input + alpha * batch1 @ batch2
+
+def masked_fill_(x, mask, value):
+    mask = mask.broadcast(x.shape)
+    x.assign(x.masked_fill(mask, value))
+Tensor.masked_fill_ = masked_fill_
+
+manual_seed = jt.set_global_seed

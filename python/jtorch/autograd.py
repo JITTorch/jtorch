@@ -2,6 +2,8 @@ import jittor as jt
 from jittor import Var
 from collections.abc import Sequence, Mapping
 
+Variable = Var
+
 class FunctionContext:
     def save_for_backward(self, *args):
         self.saved_tensors = args
