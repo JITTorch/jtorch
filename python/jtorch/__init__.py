@@ -100,6 +100,13 @@ class ModuleMisc:
     def parameters(self):
         return iter(super().parameters())
 
+    def load_state_dict(self, state_dict, strict=False):
+        return super().load_state_dict(state_dict)
+
+    def to(self, device):
+        ''' do nothing but return its self'''
+        return self
+
 def make_module(cls):
     class TMod(ModuleMisc, cls):
         def __init__(self, *args, **kw):
@@ -119,12 +126,6 @@ def make_module(cls):
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):
             return self.execute(*args, **kw)
-        def load_state_dict(self, state_dict, strict=False):
-            return super().load_state_dict(state_dict)
-        def to(self, device):
-            return self
-        def cuda(self, device):
-            return self
         
         @property
         def training(self):
@@ -224,18 +225,9 @@ double = float64 = JDType(jt.float64, "torch.float64")
 bfloat16 = "bfloat16" # TODO
 
 def load(path, map_location="cpu"):
-    print("load from path", path)
     return jt.load(path)
 
 def is_tensor(x):
     return isinstance(x, Tensor)
-
-def baddbmm(input, batch1, batch2, *, beta=1, alpha=1, out=None):
-    return beta * input + alpha * batch1 @ batch2
-
-def masked_fill_(x, mask, value):
-    mask = mask.broadcast(x.shape)
-    x.assign(x.masked_fill(mask, value))
-Tensor.masked_fill_ = masked_fill_
 
 manual_seed = jt.set_global_seed
