@@ -231,3 +231,4 @@ def is_tensor(x):
     return isinstance(x, Tensor)
 
 manual_seed = jt.set_global_seed
+jt.flags.amp_level = 3
