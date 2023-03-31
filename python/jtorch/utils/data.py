@@ -1,4 +1,5 @@
 import jittor as jt
+import jittor.dataset
 from jittor.dataset import Dataset as JDataset
 
 from typing import Any, Callable, Iterable, Optional, Sequence, Union
@@ -58,3 +59,9 @@ class DataLoader(JDataset):
 
     def __getitem__(self, i):
         return self.dataset[i]
+
+BatchSampler = jt.dataset.BatchSampler
+RandomSampler = jt.dataset.RandomSampler
+Sampler = jt.dataset.Sampler
+SequentialSampler = jt.dataset.SequentialSampler
+SubsetRandomSampler = jt.dataset.SubsetRandomSampler

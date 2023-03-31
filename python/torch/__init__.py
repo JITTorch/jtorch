@@ -23,6 +23,8 @@ sys.modules["torch.nn.utils"] = load_mod("jtorch.nn")
 jtorch.nn.functional = jtorch.nn
 sys.modules["torch.utils"] = load_mod("jtorch.utils")
 sys.modules["torch.utils.data"] = load_mod("jtorch.utils.data")
+sys.modules["torch.utils.data.sampler"] = load_mod("jtorch.utils.data")
+jtorch.utils.data.sampler = jtorch.utils.data
 sys.modules["torch.utils.checkpoint"] = load_mod("jtorch.utils.checkpoint")
 
 distributed = sys.modules["torch.distributed"] = load_mod("jtorch.distributed")
