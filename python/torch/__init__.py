@@ -15,14 +15,17 @@ autograd = sys.modules["torch.autograd"] = load_mod("jtorch.autograd")
 sys.modules["torch.cuda"] = load_mod("jtorch.cuda")
 sys.modules["torch.nn"] = load_mod("jtorch.nn")
 sys.modules["torch.nn.functional"] = load_mod("jtorch.nn")
-sys.modules["torch.nn.module"] = load_mod("jtorch.nn")
+sys.modules["torch.nn.modules"] = load_mod("jtorch.nn")
 jtorch.nn.module = jtorch.nn
 sys.modules["torch.nn.parameter"] = load_mod("jtorch.nn")
 jtorch.nn.parameter = jtorch.nn
 sys.modules["torch.nn.utils"] = load_mod("jtorch.nn")
 jtorch.nn.functional = jtorch.nn
 sys.modules["torch.utils"] = load_mod("jtorch.utils")
+sys.modules["torch._utils"] = load_mod("jtorch.utils")
 sys.modules["torch.utils.data"] = load_mod("jtorch.utils.data")
+sys.modules["torch.utils.data.sampler"] = load_mod("jtorch.utils.data")
+jtorch.utils.data.sampler = jtorch.utils.data
 sys.modules["torch.utils.checkpoint"] = load_mod("jtorch.utils.checkpoint")
 
 distributed = sys.modules["torch.distributed"] = load_mod("jtorch.distributed")
