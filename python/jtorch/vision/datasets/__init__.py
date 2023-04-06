@@ -1,4 +1,5 @@
 from .mnist import EMNIST, FashionMNIST, KMNIST, MNIST, QMNIST
+from .folder import ImageFolder
 
 __all__ = (
     "EMNIST",
@@ -6,4 +7,5 @@ __all__ = (
     "QMNIST",
     "MNIST",
     "KMNIST",
+    "ImageFolder",
 )

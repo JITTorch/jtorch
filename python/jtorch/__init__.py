@@ -75,6 +75,16 @@ def device_get(x:Tensor):
     return device("cpu") if not jt.has_cuda or not jt.flags.use_cuda else device("cuda")
 Tensor.device = property(device_get)
 
+# Need to modify jittor code
+def get_data(x:Tensor):
+    if jt.flags.th_mode:
+        return x
+    else:
+        return x.get_data()
+
+Tensor.data = property(get_data, Tensor.set_data)
+Tensor.copy_ = lambda a, b: a.assign(b)
+
 def argmax(x: Var, dim=None, keepdim: bool = False):
     return jt.argmax(x, dim, keepdim)[0]
 Tensor.argmax = argmax
@@ -232,3 +242,62 @@ def is_tensor(x):
 
 manual_seed = jt.set_global_seed
 jt.flags.amp_level = 3
+
+def zeros(size, dtype=None, device=None):
+    if dtype is None:
+        dtype = jt.float32
+    return jt.zeros(size, dtype=dtype)
+
+def full(fill_value, size, dtype=None, device=None):
+    if dtype is None:
+        dtype = jt.float32
+    return jt.full(size, fill_value, dtype=dtype)
+
+def unique_consecutive(inputs, return_inverse=False, return_counts=False, dim=None):
+    """
+    Eliminate consecutive duplicate values
+
+    For example
+    >>> x = jt.array([1, 1, 2, 2, 3, 1, 1, 2])
+    >>> output, counts = unique_consecutive(x, return_counts=True)
+    >>> output
+    Var([1, 2, 3, 1, 2])
+    >>> counts
+    Var([2, 2, 1, 2, 1])
+    """
+    if dim is None:
+        inputs = inputs.flatten()
+        dim = 0
+
+    y = inputs[(slice(None),) * dim + (slice(1, None),)] != inputs[(slice(None),) * dim + (slice(None, -1),)]
+    y = jt.concat([jt.ones((1,) * dim, dtype=bool), y], dim=dim)
+    ret = inputs[y]
+    if return_inverse:
+        raise NotImplementedError("return_inverse is not implemented yet")
+    if return_counts:
+        """ Eliminate consecutive duplicate values
+        return the every element count of consecutive duplicate values appears in the inputs Var.
+        For example
+        >>> x = jt.array([1, 1, 2, 2, 3, 1, 1, 2])
+        >>> output, counts = unique_consecutive(x, return_counts=True)
+        >>> output
+        Var([1, 2, 3, 1, 2])
+        >>> counts
+        Var([2, 2, 1, 2, 1])
+        """
+        counts = jt.zeros(ret.shape, dtype=jt.int32)
+        cnt = 0
+        for i in inputs:
+            if i == ret[cnt]:
+                counts[cnt] += 1
+            else:
+                cnt += 1
+                counts[cnt] += 1
+        return ret, counts
+    return ret
+
+def sum(x, dim=None, keepdim=False):
+    if dim is None:
+        return jt.sum(x)
+    else:
+        return jt.sum(x, dim=dim, keepdims=keepdim)
