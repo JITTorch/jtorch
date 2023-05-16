@@ -1,11 +1,11 @@
 import jtorch
 import jittor as jt
 
-from jtorch import make_module, Tensor, ModuleMisc
+from jtorch import make_module, Tensor, ModuleMisc, wrapper
 
 for k,v in jt.nn.__dict__.items():
     if callable(v):
-        globals()[k] = v
+        globals()[k] = wrapper(v)
 
 for k,v in jt.nn.__dict__.items():
     if isinstance(v, type) and issubclass(v, jt.Module):

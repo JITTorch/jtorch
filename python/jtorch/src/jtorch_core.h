@@ -11,7 +11,7 @@ struct Device {
     
     // @pyjt(__init__)
     Device(const string& name);
-    // @pyjt(__get__type)
+    // @pyjt(__get__type, __str__)
     inline string get_type() {return name;}
     // @pyjt(__get__index)
     inline int index() {return 0;}

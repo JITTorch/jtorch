@@ -12,11 +12,25 @@ import jtorch.compiler
 import jtorch_core
 from jtorch_core import *
 
+def handle_dtype(args, kw, dtype):
+    def convert(x):
+        if isinstance(x, jt.Var):
+            return x.cast(dtype)
+        return x
+    if dtype is not None:
+        if args is not None:
+            if isinstance(args, (tuple,list)):
+                args = [ convert(a) for a in args ]
+            else:
+                args = convert(x)
+        if kw is not None:
+            kw = { k:convert(v) for k,v in kw.items() }
+    return args, kw
 
 def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
-        has_dtype = "dtype" in func.__code__.co_varnames
+        has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
@@ -28,6 +42,7 @@ def wrapper(func):
             del kw["dtype"]
         if "device" in kw:
             del kw["device"]
+        args, kw = handle_dtype(args, kw, dtype)
         ret = func(*args, **kw)
         if requires_grad is not None:
             ret.requires_grad = requires_grad
@@ -66,7 +81,6 @@ def retain_grad(x:Tensor, value:bool=True):
     return value
 Tensor.retain_grad = retain_grad
 
-Tensor.to = lambda self, device: self
 Tensor.dim = lambda self: self.ndim
 Tensor.ndimension = lambda self: self.ndim
 Tensor.nelement = lambda self: self.numel()
@@ -114,6 +128,7 @@ def make_module(cls):
             if "dtype" in kw:
                 dtype = kw["dtype"]
                 del kw["dtype"]
+            self._dtype = dtype
             with jt.flag_scope(th_mode=0):
                 super().__init__(*args, **kw)
             for k,v in self.__dict__.items():
@@ -123,8 +138,10 @@ def make_module(cls):
                 if dtype is not None and isinstance(v, Var):
                     v.assign(v.cast(dtype))
         def __call__(self, *args, **kw):
+            args, kw = handle_dtype(args, kw, self._dtype)
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):
+            args, kw = handle_dtype(args, kw, self._dtype)
             return self.execute(*args, **kw)
         
         @property
@@ -175,6 +192,8 @@ def min(*args, **kw):
     if dim is not None:
         k, v = jt.argmin(*args, **kw)
         return v, k
+    elif len(args) == 2 and isinstance(args[1], jt.Var):
+        return jt.minimum(args[0], args[1])
     else:
         return jt.min(*args, **kw)
 Tensor.min = conflict_wrapper(jt.min, min)
@@ -190,6 +209,8 @@ def max(*args, **kw):
     if dim is not None:
         k, v = jt.argmax(*args, **kw)
         return v, k
+    elif len(args) == 2 and isinstance(args[1], jt.Var):
+        return jt.maximum(args[0], args[1])
     else:
         return jt.max(*args, **kw)
 Tensor.max = conflict_wrapper(jt.max, max)
@@ -232,3 +253,4 @@ def is_tensor(x):
 
 manual_seed = jt.set_global_seed
 jt.flags.amp_level = 3
+Size = jt.NanoVector
