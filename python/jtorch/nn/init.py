@@ -9,3 +9,6 @@ normal = gauss
 normal_ = gauss_
 xavier_normal = xavier_gauss
 xavier_normal_ = xavier_gauss_
+
+jt.Var.normal_ = normal_
+

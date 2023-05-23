@@ -12,6 +12,9 @@ import jtorch.compiler
 import jtorch_core
 from jtorch_core import *
 
+device.__reduce__ = lambda self: (device, (self.type,))
+
+
 def handle_dtype(args, kw, dtype):
     def convert(x):
         if isinstance(x, jt.Var):
@@ -100,6 +103,10 @@ def tensor_type(x: Var, dtype=None, **kwargs):
         return x.dtype
 Tensor.type = tensor_type
 
+def is_floating_point(x: Var):
+    return "float" in str(x.dtype)
+Tensor.is_floating_point = is_floating_point
+
 from . import autograd
 from .autograd import *
 
@@ -117,7 +124,7 @@ class ModuleMisc:
     def load_state_dict(self, state_dict, strict=False):
         return super().load_state_dict(state_dict)
 
-    def to(self, device):
+    def to(self, device,dtype=None):
         ''' do nothing but return its self'''
         return self
 
@@ -244,6 +251,8 @@ half = float16 = JDType(jt.float16, "torch.float16")
 float = float32 = JDType(jt.float32, "torch.float32")
 double = float64 = JDType(jt.float64, "torch.float64")
 bfloat16 = "bfloat16" # TODO
+complex64 = "complex64" # TODO
+complex128 = "complex128" # TODO
 
 def load(path, map_location="cpu"):
     return jt.load(path)
@@ -254,3 +263,13 @@ def is_tensor(x):
 manual_seed = jt.set_global_seed
 jt.flags.amp_level = 3
 Size = jt.NanoVector
+
+
+
+
+class Generator:
+    def manual_seed(self,seed):
+        pass
+
+
+from . import fx

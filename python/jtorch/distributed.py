@@ -24,5 +24,23 @@ def new_group(ranks=None, timeout=datetime.timedelta(seconds=1800), backend=None
 def barrier():
     pass
 
+def is_available():
+    return True 
+
+def is_built():
+    return True
+
+class ReduceOp:
+    SUM = 0
+
+class GroupMember:
+    WORLD = 0 
+
+class ProcessGroup:
+    pass
+
+class Join:
+    pass
+
 dist_backend = Enum("dist_backend", ("GLOO", "MPI", "NCCL"))
 _backend = dist_backend.NCCL
