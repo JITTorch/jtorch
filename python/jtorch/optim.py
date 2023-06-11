@@ -12,7 +12,8 @@ class Optimizer(jt.optim.Optimizer):
                 if p.requires_grad:
                     params_has_grad.append(p)
         jt.sync(params_has_grad)
-
+        self.n_step += 1
+        
     def zero_grad(self):
         for pg in self.param_groups:
             pg["grads"] = [ None for p in pg["params"] ]

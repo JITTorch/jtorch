@@ -33,3 +33,6 @@ HalfTensor = jt.float16
 BoolTensor = jt.bool
 
 manual_seed = jt.set_global_seed
+
+def synchronize():
+    jt.sync_all(True)
