@@ -127,7 +127,9 @@ class ModuleMisc:
     def to(self, device,dtype=None):
         ''' do nothing but return its self'''
         return self
-
+    def register_parameter(self,name,data):
+        self.name = data
+        
 def make_module(cls):
     class TMod(ModuleMisc, cls):
         def __init__(self, *args, **kw):
@@ -241,6 +243,8 @@ class JDType:
         return self.func(*args, **kw)
     def __str__(self):
         return self.str
+    def is_floating_point(self):
+        return "float" in str(self.str)
 
 int8 = JDType(jt.int8, "torch.int8")
 int16 = JDType(jt.int16, "torch.int16")
@@ -254,8 +258,21 @@ bfloat16 = "bfloat16" # TODO
 complex64 = "complex64" # TODO
 complex128 = "complex128" # TODO
 
-def load(path, map_location="cpu"):
-    return jt.load(path)
+# def load(path, map_location="cpu"):
+#     return jt.load(path)
+
+def load(path,**kwargs):
+    def _to_jittor(data):
+        if isinstance(data,dict):
+            return {k:_to_jittor(d) for k,d in data.items()}
+        if isinstance(data,list):
+            return [_to_jittor(d) for d in data]
+        if isinstance(data,np.ndarray):
+            return jt.array(data)
+        return data
+    data = jt.load(path)
+    
+    return _to_jittor(data)
 
 def is_tensor(x):
     return isinstance(x, Tensor)
@@ -273,3 +290,14 @@ class Generator:
 
 
 from . import fx
+
+
+_default_type = "float32"
+
+def get_default_dtype():
+    return _default_type
+def set_default_dtype(dtype):
+    global _default_type
+    _default_type = dtype
+
+dtype = JDType

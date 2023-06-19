@@ -1,8 +1,247 @@
 import jittor as jt
+import math
 from jittor.optim import *
+import auto_checkpoint as ac
+from .adamw_cpu import cpu_adam_module,cal_inf_sqr
+from functools import partial
 
 class Optimizer(jt.optim.Optimizer):
-    def pre_step(self, loss, retain_graph=False):
+    def pre_step(self, loss=None, retain_graph=False):
+        if self.has_pre:
+            return
+        jt.flags.node_order = 1
+        params_has_grad = []
+        for pg in self.param_groups:
+            pg["grads"] = [ 0 if p.grad is None else p.grad#.float32()
+                for p in pg["params"] ]
+            for p in pg["params"]:
+                if p.requires_grad:
+                    params_has_grad.append(p)
+        jt.sync(params_has_grad)
+        self.has_pre = True
+
+    def zero_grad(self):
+        for pg in self.param_groups:
+            pg["grads"] = [ None for p in pg["params"] ]
+            for p in pg["params"]: p.grad = None
+
+    def post_step(self):
+        jt.flags.node_order = 0
+        self.has_pre = False
+
+    def clip_grad_norm(self, max_norm:float, norm_type:int=2):
+        r"""Clips gradient norm of this optimizer.
+        The norm is computed over all gradients together.
+
+        Args:
+            max_norm (float or int): max norm of the gradients
+            norm_type (int): 1-norm or 2-norm
+
+        Example::
+
+            a = jt.ones(2)
+            opt = jt.optim.SGD([a], 0.1)
+
+            loss = a*a
+            opt.zero_grad()
+            opt.backward(loss)
+
+            print(opt.param_groups[0]['grads'][0].norm()) # output: 2.83
+            opt.clip_grad_norm(0.01, 2)
+            print(opt.param_groups[0]['grads'][0].norm()) # output: 0.01
+            
+            opt.step()
+
+        """
+        self.pre_step(None)
+        grads = []
+        for pg in self.param_groups:
+            for p, g in zip(pg["params"], pg["grads"]):
+                if p.is_stop_grad(): continue
+                grads.append(g.flatten())
+        if len(grads) == 0: return
+        total_norm = jt.norm(jt.concat(grads), norm_type)
+        clip_coef = jt.minimum(max_norm / (total_norm + 1e-6), 1.0)
+        for pg in self.param_groups:
+            for p, g in zip(pg["params"], pg["grads"]):
+                if p.is_stop_grad(): continue
+                g.update(g*clip_coef)
+
+
+class AdamW(Optimizer):
+    def __init__(self, params, lr, eps=1e-8, betas=(0.9, 0.999), weight_decay=0,use_fp32=True):
+        super().__init__(params, lr)
+        self.eps = eps
+        self.betas = betas
+        self.weight_decay = weight_decay
+
+        self.use_fp32 = use_fp32
+        self.has_pre = False
+        # assert weight_decay==0, "weight_decay is not supported yet"
+        
+        # initialize required arguments for each param_groups
+        for pg in self.param_groups:
+            values = pg["values"] = []
+            m = pg["m"] = []
+            mp = pg['masterparams'] = []
+            for p in pg["params"]:
+                values.append(jt.zeros(p.shape, "float32" if self.use_fp32 else p.dtype).stop_grad())
+                m.append(jt.zeros(p.shape, "float32" if self.use_fp32 else p.dtype).stop_grad())
+                if self.use_fp32:
+                    mp.append(p.detach().clone().stop_grad())
+
+    def add_param_group(self, group):
+        values = group["values"] = []
+        m = group["m"] = []
+        mp = group['masterparams'] = []
+        for p in group["params"]:
+            values.append(jt.zeros(p.shape, "float32" if self.use_fp32 else p.dtype).stop_grad())
+            m.append(jt.zeros(p.shape, "float32" if self.use_fp32 else p.dtype).stop_grad())
+            if self.use_fp32:
+                mp.append(p.detach().clone().stop_grad())
+        self.param_groups.append(group)
+
+    def step(self, loss=None, retain_graph=False):
+        self.pre_step(loss, retain_graph)
+        if loss is None:
+            self.n_step += 1
+        n = float(self.n_step)
+        for pg in self.param_groups:
+            # get arguments from each param_groups
+            lr = pg.get("lr", self.lr)
+            eps = pg.get("eps", self.eps)
+            weight_decay = pg.get("weight_decay", self.weight_decay)
+            b0, b1 = pg.get("betas", self.betas)
+            
+            for p, g, v, m,mp in zip(pg["params"], pg["grads"], pg["values"], pg["m"],pg['masterparams']):
+                if p.is_stop_grad(): continue
+                c_p = (mp * (1 - lr * weight_decay))
+                mp.update(c_p)
+                if self.use_fp32:
+                    g = g.float32()
+                bias_correction1 = 1 - b0 ** n
+                bias_correction2 = 1 - b1 ** n
+                m.update(b0 * m + (1-b0) * g) #exp_avg
+                v.update(b1 * v + (1-b1) * g * g) #exp_avg_sq
+                denom = jt.sqrt(v) / jt.sqrt(bias_correction2) + eps
+                step_size = lr / bias_correction1
+                new_p = (mp - step_size * m / denom)
+                mp.update(new_p)
+                p.update(mp.cast(p.dtype))
+        self.post_step()
+
+class AdamWv2(Optimizer):
+    """ AdamW Optimizer.
+    
+    Example::
+
+        optimizer = nn.AdamW(model.parameters(), lr, eps=1e-8, betas=(0.9, 0.999))
+        optimizer.step(loss)
+    """
+    @jt.flag_scope(use_cuda=0)
+    def __init__(self, params, lr, eps=1e-8, betas=(0.9, 0.999), weight_decay=0,use_clip_norm=True):
+        super().__init__(params, lr)
+        self.eps = eps
+        self.betas = betas
+        self.weight_decay = weight_decay
+        self.use_clip_norm = use_clip_norm
+
+        self.has_pre = False
+        # initialize required arguments for each param_groups
+        for pg in self.param_groups:
+            values = pg["values"] = []
+            m = pg["m"] = []
+            mp = pg['masterparams'] = []
+            for p in pg["params"]:
+                values.append(jt.zeros(p.shape, "float32").stop_grad())
+                m.append(jt.zeros(p.shape, "float32").stop_grad())
+                mp.append(p.detach().clone().stop_grad().float32())
+    
+    @jt.flag_scope(use_cuda=0)
+    def add_param_group(self, group):
+        values = group["values"] = []
+        m = group["m"] = []
+        mp = group['masterparams'] = []
+        for p in group["params"]:
+            values.append(jt.zeros(p.shape, "float32").stop_grad())
+            m.append(jt.zeros(p.shape, "float32").stop_grad())
+            mp.append(p.detach().clone().stop_grad().float32())
+        self.param_groups.append(group)
+    
+    @jt.flag_scope(use_cuda=0)
+    def step(self,loss=None,retain_graph=False):
+       self.step_cpu(loss,retain_graph)
+    #    self.step_gpu(loss,retain_graph)
+    #    jt.display_memory_info()
+
+    
+    def set_grad_scale(self,grad_scale):
+        self.grad_scale = grad_scale
+
+    def get_grad_scale(self,):
+        if hasattr(self,"grad_scale"):
+            return self.grad_scale
+        return 1
+    
+    def get_find_inf(self,):
+        return self.find_inf if hasattr(self,"find_inf") else 0
+    
+
+    def step_cpu(self,loss=None,retain_graph=False):
+        from .adamw_cpu import adamw_step,adamw_step_v2
+        self.pre_step(loss, retain_graph)
+        n = float(self.n_step)
+        grad_scale,find_inf = self.cal_inf_norm(self.get_grad_scale())
+        self.find_inf = find_inf
+        print(grad_scale,find_inf)
+        for pg in self.param_groups:
+            if find_inf:
+                break
+            # get arguments from each param_groups
+            lr = pg.get("lr", self.lr)
+            eps = pg.get("eps", self.eps)
+            weight_decay = pg.get("weight_decay", self.weight_decay)
+            b0, b1 = pg.get("betas", self.betas)
+
+            data = dict(lr=lr,eps=eps,weight_decay=weight_decay,b0=b0,b1=b1,n=n,grad_scale=grad_scale)
+            
+            for p, g, v, m, mp in zip(pg["params"], pg["grads"], pg["values"], pg["m"],pg['masterparams']):
+                if p.is_stop_grad(): continue
+                # adamw_step(p,g,v,m,mp,data)
+                adamw_step_v2(p,g,v,m,mp,data)
+        self.post_step()
+
+    def cal_inf_norm(self,grad_scale):
+        # import time
+        # s = time.time()
+        self.pre_step()
+        all_sqr = 0
+        find_inf = 0
+        for pg in self.param_groups:
+            if find_inf: 
+                break
+            for g in pg["grads"]:
+                g_s,find_inf_ = cal_inf_sqr(g,grad_scale)
+                if find_inf_>0:
+                    find_inf = 1
+                    break 
+                all_sqr += g_s
+        # print(grad_scale,find_inf)
+        if self.use_clip_norm and hasattr(self,"max_norm") and find_inf == 0:
+            assert self.norm_type == 2
+            total_norm = math.sqrt(all_sqr)
+            clip_coef = min(self.max_norm / (total_norm + 1e-6), 1.0)
+            grad_scale /= clip_coef
+            print("clip_coef",clip_coef)
+        # print(time.time()-s)
+        return grad_scale,find_inf
+
+
+    @jt.flag_scope(use_cuda=0)
+    def pre_step(self, loss=None, retain_graph=False):
+        if self.has_pre:
+            return
+        self.n_step += 1
         jt.flags.node_order = 1
         params_has_grad = []
         for pg in self.param_groups:
@@ -12,16 +251,227 @@ class Optimizer(jt.optim.Optimizer):
                 if p.requires_grad:
                     params_has_grad.append(p)
         jt.sync(params_has_grad)
+        self.has_pre = True
 
+    @jt.flag_scope(use_cuda=0)
     def zero_grad(self):
         for pg in self.param_groups:
             pg["grads"] = [ None for p in pg["params"] ]
             for p in pg["params"]: p.grad = None
 
+
     def post_step(self):
         jt.flags.node_order = 0
+        self.has_pre = False
+
+    def clip_grad_norm(self, max_norm:float, norm_type:int=2):
+        r"""Clips gradient norm of this optimizer.
+        The norm is computed over all gradients together.
+
+        Args:
+            max_norm (float or int): max norm of the gradients
+            norm_type (int): 1-norm or 2-norm
+
+        Example::
+
+            a = jt.ones(2)
+            opt = jt.optim.SGD([a], 0.1)
+
+            loss = a*a
+            opt.zero_grad()
+            opt.backward(loss)
+
+            print(opt.param_groups[0]['grads'][0].norm()) # output: 2.83
+            opt.clip_grad_norm(0.01, 2)
+            print(opt.param_groups[0]['grads'][0].norm()) # output: 0.01
+            
+            opt.step()
+
+        """
+        self.max_norm = max_norm
+        self.norm_type = norm_type
+
+
+class AdamWv3(Optimizer):
+    """ AdamW Optimizer.
+    
+    Example::
+
+        optimizer = nn.AdamW(model.parameters(), lr, eps=1e-8, betas=(0.9, 0.999))
+        optimizer.step(loss)
+    """
+    @jt.flag_scope(use_cuda=0)
+    def __init__(self, params, lr, eps=1e-8, betas=(0.9, 0.999), weight_decay=0,use_grad_scaler=True,use_clip_norm=True):
+        super().__init__(params, lr)
+        self.eps = eps
+        self.betas = betas
+        self.weight_decay = weight_decay
+        self.use_grad_scaler = use_grad_scaler
+        self.use_clip_norm = use_clip_norm
+
+        self.grad_scaler_dict = dict(
+            grad_scale=2.**16,
+            growth_factor=2.0,
+            backoff_factor=0.5,
+            growth_interval=2000,
+            growth_tracker = 0,
+            find_inf = False,
+            clip_coef = 1.0
+        )
+
+        self.params = []
+        # initialize required arguments for each param_groups
+        for pg in self.param_groups:
+            values = pg["values"] = []
+            m = pg["m"] = []
+            mp = pg['masterparams'] = []
+            for p in pg["params"]:
+                values.append(jt.zeros(p.shape, "float32").stop_grad())
+                m.append(jt.zeros(p.shape, "float32").stop_grad())
+                mp.append(p.detach().clone().stop_grad().float32())
+                self.params.append(p)
+    
+    @jt.flag_scope(use_cuda=0)
+    def add_param_group(self, group):
+        values = group["values"] = []
+        m = group["m"] = []
+        mp = group['masterparams'] = []
+        for p in group["params"]:
+            values.append(jt.zeros(p.shape, "float32").stop_grad())
+            m.append(jt.zeros(p.shape, "float32").stop_grad())
+            mp.append(p.detach().clone().stop_grad().float32())
+        self.param_groups.append(group)
+
+    def take_over_loss(self,loss):
+        self._loss = loss 
+
+    def get_loss(self,loss):
+        if loss is not None:
+            return loss
+        assert hasattr(self,"_loss") and self._loss is not None
+        loss = self._loss 
+        self._loss = None
+        return loss
+    
+    def update_scale(self,grad_sqr):
+        find_inf = grad_sqr == float("inf") or grad_sqr == float("nan")
+        assert isinstance(grad_sqr,float)  
+
+         # grad scaler update
+        current_scale = self.grad_scaler_dict['grad_scale']
+        growth_tracker = self.grad_scaler_dict['growth_tracker']
+        backoff_factor = self.grad_scaler_dict['backoff_factor']
+        growth_factor = self.grad_scaler_dict['growth_factor']
+        growth_interval = self.grad_scaler_dict['growth_interval']
+        if find_inf:
+            current_scale *= backoff_factor
+            growth_tracker = 0
+        else:
+            if (growth_tracker+1) == growth_interval:
+                new_scale = current_scale * growth_factor
+                if new_scale < 1e9:
+                    current_scale = new_scale
+                growth_tracker = 0
+            else:
+                growth_tracker += 1
+        self.grad_scaler_dict['growth_tracker'] = growth_tracker
+        self.grad_scaler_dict['grad_scale'] = current_scale
+        self.grad_scaler_dict['find_inf'] = find_inf
+
+
+         # merge clip_grad in grad_scale
+        if self.use_clip_norm and hasattr(self,"max_norm") and (not find_inf):
+            assert self.norm_type == 2
+            total_norm = math.sqrt(grad_sqr)
+            clip_coef = min(self.max_norm / (total_norm + 1e-6), 1.0)
+        else:
+            clip_coef = 1
+
+        self.grad_scaler_dict['clip_coef'] = clip_coef
+
+        assert len(self.grad_scaler_dict) == 7
+       
+
+    def get_scale(self,):
+        if not self.use_grad_scaler:
+            return 1.,1.,False
+        grad_scale = self.grad_scaler_dict['grad_scale']
+        clip_coef = self.grad_scaler_dict['clip_coef']
+        find_inf = self.grad_scaler_dict['find_inf']
+        return grad_scale,clip_coef, find_inf
+
+    def get_has_run(self,):
+        return not self.grad_scaler_dict['find_inf']
+    
+    def save_for_analysis(self,data,name):
+        pass
+    
+    def step(self, loss=None, retain_graph=False):
+        loss = self.get_loss(loss)
+        n = float(self.n_step)
+
+        # build hook with previous grad
+        copy_in_hook = {}
+        copy_out_hook = {}
+              
+        
+        grad_scale,clip_coef, find_inf = self.get_scale()
+
+        grad_sqr = 0
+        # all_sqrs = []
+        def calc_grad_sqr(grad):
+            nonlocal grad_sqr
+            cur_sqr =  cpu_adam_module.grad_norm(grad)/(grad_scale*grad_scale)
+            grad_sqr += cur_sqr
+            # all_sqrs.append((grad.p_name,cur_sqr))
+
+        for pg in self.param_groups:
+            # get arguments from each param_groups
+            lr = pg.get("_lr",0.0)
+            pg['_lr'] = pg.get("lr", self.lr)
+
+            eps = pg.get("eps", self.eps)
+            weight_decay = pg.get("weight_decay", self.weight_decay)
+            b0, b1 = pg.get("betas", self.betas)
+
+            data = {"lr":lr, "eps": eps, "weight_decay":weight_decay, "b0":b0, "b1":b1, "n": n, "grad_scale": grad_scale/ clip_coef}
+
+            for p, v, m, p32 in zip(pg["params"], pg["values"], pg["m"], pg["masterparams"]):
+                if p.is_stop_grad(): continue
+                g = p.grad
+                copy_out_hook[p.id] = calc_grad_sqr
+                if g is None or find_inf: 
+                    # print("continue")q
+                    continue
+                # cpu_adam_module.adamw_step_v3(p, g, v, m, p32, data)
+                copy_in_hook[p.id] = partial(cpu_adam_module.adamw_step_v3, p, g, v, m, p32, data)
+        
+        # backward
+        # step grad scale
+        grads, [loss_ret] = ac.grad(loss*grad_scale, self.params, [loss], copy_in_hook, copy_out_hook, offload=True, opt_level=2)
+
+        loss.swap(loss_ret)
+        del loss_ret
+        
+        # setup new grad
+        for p,g in zip(self.params, grads):
+            # print(p.name())
+            p.grad = g
+        self.n_step += 1
+
+        self.update_scale(grad_sqr)
+
+    def clip_grad_norm(self, max_norm:float, norm_type:int=2):
+        self.max_norm = max_norm
+        self.norm_type = norm_type
+
+    def has_grad(self,name="has_grad"):
+        print(name,len([p.grad for p in self.params if p.grad is not None]),len(self.params))
+
+
 
 for k,v in jt.optim.__dict__.items():
+    if k == "AdamW":continue
     if isinstance(v, type) and issubclass(v, jt.optim.Optimizer) and \
         not v is jt.optim.Optimizer:
         class OptimWrap(v, Optimizer):
@@ -32,10 +482,7 @@ for k,v in jt.optim.__dict__.items():
 class Adagrad(Optimizer):
     pass
 
-# from jittor.lr_scheduler import * 
 
-# _LRScheduler = object
-# LambdaLR = None
 
 import types
 import math
@@ -185,8 +632,7 @@ class LRScheduler:
             self.print_lr(self.verbose, i, lr, epoch)
 
         self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
-
-
+        
 # Including _LRScheduler for backwards compatibility
 # Subclass instead of assign because we want __name__ of _LRScheduler to be _LRScheduler (assigning would make it LRScheduler).
 class _LRScheduler(LRScheduler):

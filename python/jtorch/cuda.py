@@ -16,6 +16,10 @@ def get_rng_state(device=None):
 def current_device():
     return jtorch.device("cuda")
 
+def mem_get_info(i):
+    return ("75GB",)
+
+
 class Generator:
     def __init__(self):
         pass
@@ -43,22 +47,23 @@ class Stream:
 
 from typing import Any
 
-class GradScaler:
+from .gradscaler import GradScaler
+# class GradScaler:
     
-    def scale(self,outputs):
-        return outputs
+#     def scale(self,outputs):
+#         return outputs
     
-    def unscale_(self,optimizer):
-        pass
+#     def unscale_(self,optimizer):
+#         pass
 
-    def get_scale(self,):
-        return 1.0
+#     def get_scale(self,):
+#         return 1.0
     
-    def step(self,optimizer,*args,**kwargs):
-        optimizer.step(*args,**kwargs)
+#     def step(self,optimizer,*args,**kwargs):
+#         optimizer.step(*args,**kwargs)
 
-    def update(self,new_scale=None):
-        pass
+#     def update(self,new_scale=None):
+#         pass
 
 class autocast:
     def __init__(self,**kwargs):
@@ -69,3 +74,5 @@ class autocast:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
         pass
+
+
