@@ -441,6 +441,13 @@ void adamw_step_v3(VarHolder* p, VarHolder* g, VarHolder* v, VarHolder* m, VarHo
 }
 
 
+// @pyjt(adamw_step_v4)
+void adamw_step_v4(VarHolder* p, int64 ga, VarHolder* v, VarHolder* m, VarHolder* p32, unordered_map<string, float64>& data){
+    auto gh = VarHolder((Var*)ga);
+    auto g  = &gh;
+    adamw_step_v3(p,g,v,m,p32,data,0);
+}
+
 // @pyjt(grad_norm)
 float64 grad_norm(int64 _) {
     auto in0 = (Var*)_;
@@ -487,6 +494,11 @@ float64 grad_norm(int64 _) {
     return tsum[0];
 }
 
+// @pyjt(grad_name)
+string grad_name(int64 _) {
+    auto in0 = (Var*)_;
+    return string(in0->name.c_str());
+}
 }
 
 ''', jt.compiler.cc_flags + " -O2 ")

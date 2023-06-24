@@ -403,8 +403,26 @@ class AdamWv3(Optimizer):
     def get_has_run(self,):
         return not self.grad_scaler_dict['find_inf']
     
-    def save_for_analysis(self,data,name):
-        pass
+    def save_for_analysis(self,data):
+        path_root = "analysis"
+        import os 
+        import json
+        os.makedirs(path_root,exist_ok=True)            
+        if not hasattr(self,"analysis_path"):
+            i = 0 
+            while os.path.exists(f"{path_root}/{i}.json"):
+                i+=1
+            self.analysis_path = f"{path_root}/{i}.json"
+            pre_data = []
+        else:
+            with open(self.analysis_path) as f:
+                pre_data = json.load(f)
+        
+        pre_data.append(data)
+        file_path = self.analysis_path
+        with open(file_path,"w") as f:
+            json.dump(pre_data,f)
+
     
     def step(self, loss=None, retain_graph=False):
         loss = self.get_loss(loss)
@@ -418,12 +436,14 @@ class AdamWv3(Optimizer):
         grad_scale,clip_coef, find_inf = self.get_scale()
 
         grad_sqr = 0
-        # all_sqrs = []
+        all_sqrs = []
         def calc_grad_sqr(grad):
             nonlocal grad_sqr
+            nonlocal all_sqrs
             cur_sqr =  cpu_adam_module.grad_norm(grad)/(grad_scale*grad_scale)
             grad_sqr += cur_sqr
-            # all_sqrs.append((grad.p_name,cur_sqr))
+            name = cpu_adam_module.grad_name(grad)
+            all_sqrs.append((name,cur_sqr))
 
         for pg in self.param_groups:
             # get arguments from each param_groups
@@ -441,7 +461,7 @@ class AdamWv3(Optimizer):
                 g = p.grad
                 copy_out_hook[p.id] = calc_grad_sqr
                 if g is None or find_inf: 
-                    # print("continue")q
+                    # print("continue")
                     continue
                 # cpu_adam_module.adamw_step_v3(p, g, v, m, p32, data)
                 copy_in_hook[p.id] = partial(cpu_adam_module.adamw_step_v3, p, g, v, m, p32, data)
@@ -452,10 +472,14 @@ class AdamWv3(Optimizer):
 
         loss.swap(loss_ret)
         del loss_ret
+
+        # all_sqrs.append(loss.item())
+        # all_sqrs.append(self.n_step)
+        # self.save_for_analysis(all_sqrs)
+        
         
         # setup new grad
         for p,g in zip(self.params, grads):
-            # print(p.name())
             p.grad = g
         self.n_step += 1
 
@@ -469,6 +493,115 @@ class AdamWv3(Optimizer):
         print(name,len([p.grad for p in self.params if p.grad is not None]),len(self.params))
 
 
+class AdamWv4(AdamWv3):
+    def step(self, loss=None, retain_graph=False):
+        loss = self.get_loss(loss)
+        self.n_step += 1
+        n = float(self.n_step)
+
+        # build hook with previous grad
+        copy_out_hook = {}
+              
+        
+        grad_scale, _, _ = self.get_scale()
+        ratio = self.clip_coef_ratio if hasattr(self,"clip_coef_ratio") else 0
+        
+        grad_sqr = 0
+        cur_clip_coef = None
+        has_update = []
+        find_inf = False
+        first_norm = None
+
+        def grad_clip_grad_scale_adamw_step(p,v,m,p32,data,grad_addr):
+            nonlocal grad_sqr 
+            nonlocal cur_clip_coef
+            nonlocal has_update
+            nonlocal find_inf 
+            nonlocal first_norm
+            if find_inf: return 
+            
+            cur_sqr = cpu_adam_module.grad_norm(grad_addr)/(grad_scale*grad_scale)
+            grad_sqr += cur_sqr
+            find_inf = grad_sqr == float("inf") or grad_sqr == float("nan")
+            if find_inf: return
+            
+            if first_norm is None:
+                total_norm = math.sqrt(cur_sqr)
+                first_norm = total_norm
+                if ratio > 0:
+                    estimate_norm = ratio*total_norm
+                    cur_clip_coef = min(self.max_norm / (estimate_norm + 1e-6), 1.0)
+                else:
+                    cur_clip_coef = 1.0
+                    
+            data = data.copy()
+            data['grad_scale'] = data['grad_scale'] / cur_clip_coef
+
+            cpu_adam_module.adamw_step_v4(p,grad_addr,v,m,p32,data)
+            has_update.append([p,v,m,p32,data])
+
+        def reverse_step(p,v,m,p32,data):
+            lr = data['lr']
+            weight_decay = data['weight_decay']
+            eps = data['eps']
+            b0 = data['b0']
+            b1 = data['b1']
+            n = data['n']
+            g = p.grad.float32() / data['grad_scale']
+            bias_correction1 = 1 - b0 ** n
+            bias_correction2 = 1 - b1 ** n
+            denom = jt.sqrt(v) / jt.sqrt(bias_correction2) + eps
+            step_size = lr / bias_correction1
+            p32.update((p32+(step_size*m/denom))/(1-lr*weight_decay))
+            p.update(p32.cast(p.dtype))
+            v.update((v-(1-b1)*g*g)/b1)
+            m.update((m-(1-b0)*g)/b0)
+            
+
+        for pg in self.param_groups:
+            # get arguments from each param_groups
+            lr = pg.get("lr", self.lr)
+            eps = pg.get("eps", self.eps)
+            weight_decay = pg.get("weight_decay", self.weight_decay)
+            b0, b1 = pg.get("betas", self.betas)
+
+            data = {"lr":lr, "eps": eps, "weight_decay":weight_decay, "b0":b0, "b1":b1, "n": n, "grad_scale": grad_scale}
+
+            for p, v, m, p32 in zip(pg["params"], pg["values"], pg["m"], pg["masterparams"]):
+                if p.is_stop_grad(): continue
+                copy_out_hook[p.id] = partial(grad_clip_grad_scale_adamw_step, p, v, m, p32, data)
+        
+        # backward
+        # step grad scale
+        copy_in_hook = {}
+        grads, [loss_ret] = ac.grad(loss*grad_scale, self.params, [loss], copy_in_hook, copy_out_hook, offload=True, opt_level=2)
+
+        loss.swap(loss_ret)
+        del loss_ret
+
+        # setup new grad
+        for p,g in zip(self.params, grads):
+            p.grad = g
+
+        assert grad_sqr is not None
+        self.update_scale(grad_sqr)
+        
+        if not find_inf:
+            update_ratio = 0.8
+            total_norm = math.sqrt(grad_sqr)
+            cur_ratio = total_norm / first_norm
+            if ratio == 0:
+                self.clip_coef_ratio = cur_ratio
+            else:
+                self.clip_coef_ratio = ratio*update_ratio+(1-update_ratio)*cur_ratio
+            error_estimation = (total_norm - first_norm*ratio)/total_norm
+            print("not find inf, estimate clip coef error",error_estimation)
+        else:
+            print(f"find inf, reverse {len(has_update)} params")
+            with jt.flag_scope(use_cuda=0):
+                for p,v,m,p32,data in has_update:
+                    reverse_step(p,v,m,p32,data)
+                jt.sync_all()
 
 for k,v in jt.optim.__dict__.items():
     if k == "AdamW":continue
