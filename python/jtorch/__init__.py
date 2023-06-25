@@ -54,6 +54,7 @@ def wrapper(func):
 
 import inspect
 _wrapper_keys = set(["shape", "start", "size"])
+_wrapper_keys.add("x")
 for k,v in list(globals().items()):
     if callable(v) and not isinstance(v, type):
         try:
