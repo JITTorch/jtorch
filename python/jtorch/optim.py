@@ -494,6 +494,7 @@ class AdamWv3(Optimizer):
 
 
 class AdamWv4(AdamWv3):
+
     def step(self, loss=None, retain_graph=False):
         loss = self.get_loss(loss)
         self.n_step += 1
@@ -506,7 +507,7 @@ class AdamWv4(AdamWv3):
         grad_scale, _, _ = self.get_scale()
         ratio = self.clip_coef_ratio if hasattr(self,"clip_coef_ratio") else 0
         
-        grad_sqr = 0
+        grad_sqr = 0.
         cur_clip_coef = None
         has_update = []
         find_inf = False
@@ -550,8 +551,9 @@ class AdamWv4(AdamWv3):
             g = p.grad.float32() / data['grad_scale']
             bias_correction1 = 1 - b0 ** n
             bias_correction2 = 1 - b1 ** n
-            denom = jt.sqrt(v) / jt.sqrt(bias_correction2) + eps
             step_size = lr / bias_correction1
+            
+            denom = jt.sqrt(v) / jt.sqrt(bias_correction2) + eps
             p32.update((p32+(step_size*m/denom))/(1-lr*weight_decay))
             p.update(p32.cast(p.dtype))
             v.update((v-(1-b1)*g*g)/b1)

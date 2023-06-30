@@ -443,9 +443,107 @@ void adamw_step_v3(VarHolder* p, VarHolder* g, VarHolder* v, VarHolder* m, VarHo
 
 // @pyjt(adamw_step_v4)
 void adamw_step_v4(VarHolder* p, int64 ga, VarHolder* v, VarHolder* m, VarHolder* p32, unordered_map<string, float64>& data){
-    auto gh = VarHolder((Var*)ga);
-    auto g  = &gh;
-    adamw_step_v3(p,g,v,m,p32,data,0);
+    auto g  = (Var*)ga;
+
+    // only update params once
+    static unordered_map<int64, int64> last;
+    static int64 last_step = 0;
+    static int64 total_bytes = 0, total_ns = 0;
+    int64 step = data["n"];
+    if (last_step != step) {
+        last_step = step;
+        LOGir << "update param count:" << last.size() << "total_bytes(GB):" << total_bytes/1e9 << "total_time:" << total_ns/1e9 << "BW(GB/s):" << total_bytes*1.0/total_ns;
+        total_ns = total_bytes = 0;
+    }
+    // LOGir << "check update param " << p32->var << step;
+    if (last[p32->var->id] != step) {
+        last[p32->var->id] = step;
+    } else {
+        //LOGir << "return";
+        return;
+    }
+
+    //LOGir<<"adam step";
+
+
+    ASSERT(!g->allocator->is_cuda());
+    ASSERT(!v->var->allocator->is_cuda());
+    ASSERT(!m->var->allocator->is_cuda());
+    ASSERT(!p32->var->allocator->is_cuda());
+    if (p->var->allocator->is_cuda()) {
+        free_var_mem(p->var);
+        p->var->alloc(cpu_allocator);
+    }
+    
+    auto in0 = p32->var;
+    auto in0_p = in0->ptr<float32>();
+    auto in1_p = g->ptr<float16>();
+    auto in2_p = v->var->ptr<float32>();
+    auto in3_p = m->var->ptr<float32>();
+    auto in4_p = p->var->ptr<float16>();
+
+    float lr = data["lr"];
+    float eps = data["eps"];
+    float weight_decay = data["weight_decay"];
+    float b0 = data["b0"];
+    float b1 = data["b1"];
+    float n = data["n"];
+    float grad_scale_inv = 1.0 / data["grad_scale"];
+
+    //LOGir<<"Optim hyp"<<lr<<eps<<weight_decay<<b0<<b1<<n<<grad_scale_inv;
+
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
+    T_EXEC_BEGIN;
+    float pm = 1 - lr * weight_decay;
+    float bias_correction1_inv = 1.0f / (1.0f - powf(b0,n));
+    float bias_correction2_inv = 1.0f / sqrtf(1.0f - powf(b1,n));
+    float step_size = lr * bias_correction1_inv;
+
+    ssize_t d = (N-1)/NT+1;
+    float* __restrict__ pp = (float* __restrict__)(in0_p+tid*d);
+    float16* __restrict__ gg = (float16* __restrict__)(in1_p+tid*d);
+    float* __restrict__ vv = (float* __restrict__)(in2_p+tid*d);
+    float* __restrict__ mm = (float* __restrict__)(in3_p+tid*d);
+    float16* __restrict__ pp16 = (float16* __restrict__)(in4_p+tid*d);
+
+    __m256 pm_v = _mm256_set1_ps(pm);
+    __m256 b0_v = _mm256_set1_ps(b0);
+    __m256 b1_v = _mm256_set1_ps(b1);
+    __m256 x_b0_v = _mm256_set1_ps((1-b0)*grad_scale_inv);
+    __m256 x_b1_v = _mm256_set1_ps((1-b1)*grad_scale_inv*grad_scale_inv);
+    __m256 step_size_v = _mm256_set1_ps(step_size);
+    __m256 eps_v = _mm256_set1_ps(eps);
+    __m256 eps2_v = _mm256_set1_ps(1e-30f);
+    __m256 bias_correction2_inv_v = _mm256_set1_ps(bias_correction2_inv);
+
+    for (ssize_t j=0; j<d; j+=8) {
+        auto g16_v = _mm_stream_load_si128((__m128i* __restrict__)(gg + j));
+        __m256 p_v = _mm256_loadu_ps(pp + j);
+        __m256 v_v = _mm256_loadu_ps(vv + j);
+        __m256 m_v = _mm256_loadu_ps(mm + j);
+
+        auto g_v = _mm256_cvtph_ps(g16_v);
+
+        p_v = _mm256_mul_ps(p_v, pm_v);
+        m_v = _mm256_fmadd_ps(b0_v, m_v, _mm256_mul_ps(x_b0_v, g_v));
+        v_v = _mm256_fmadd_ps(b1_v, v_v, _mm256_mul_ps(x_b1_v, _mm256_mul_ps(g_v, g_v)));
+        __m256 sqrt_v_v = _mm256_mul_ps(v_v, _mm256_rsqrt_ps(_mm256_max_ps(v_v, eps2_v)));
+        __m256 denom_v = _mm256_add_ps(_mm256_mul_ps(sqrt_v_v, bias_correction2_inv_v), eps_v);
+        p_v = _mm256_sub_ps(p_v, _mm256_div_ps(_mm256_mul_ps(step_size_v, m_v), denom_v));
+
+        auto p16_v = _mm256_cvtps_ph(p_v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+
+        _mm256_stream_ps(pp + j, p_v);
+        _mm256_stream_ps(vv + j, v_v);
+        _mm256_stream_ps(mm + j, m_v);
+        _mm_stream_si128((__m128i* __restrict__)(pp16 + j), p16_v);
+    }
+    T_EXEC_END;
+    
+    auto now = std::chrono::high_resolution_clock::now();
+    total_ns +=  (int64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count();
+    total_bytes += N*1ll*(4*3*2+4);
 }
 
 // @pyjt(grad_norm)
