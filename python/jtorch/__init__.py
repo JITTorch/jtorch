@@ -44,10 +44,11 @@ def wrapper(func):
             del kw["device"]
         args, kw = handle_dtype(args, kw, dtype)
         ret = func(*args, **kw)
-        if requires_grad is not None:
-            ret.requires_grad = requires_grad
-        if dtype is not None:
-            ret.astype(dtype)
+        if isinstance(ret, jt.Var):
+            if requires_grad is not None:
+                ret.requires_grad = requires_grad
+            if dtype is not None:
+                ret.astype(dtype)
         return ret
     return inner
         
