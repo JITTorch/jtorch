@@ -1,5 +1,6 @@
 import os
 os.environ["FIX_TORCH_ERROR"] = "0"
+INT_ = int
 
 import jittor as jt
 from jittor import *
@@ -34,6 +35,8 @@ def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
         has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
+        if func.__name__ == "zeros":
+            has_dtype = True
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
@@ -301,3 +304,12 @@ def set_default_dtype(dtype):
     _default_type = dtype
 
 dtype = JDType
+
+def div(x,y,rounding_mode="floor"):
+    assert rounding_mode == "floor"
+    z = (x / y)
+    if rounding_mode == "floor":
+        z = z.floor()    
+    if x.dtype == "int32" and (isinstance(y,INT_) or y.dtype == "int32"):
+        z = z.int32()
+    return z
