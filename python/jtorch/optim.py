@@ -5,8 +5,6 @@ from functools import partial
 
 class Optimizer(jt.optim.Optimizer):
     def pre_step(self, loss=None, retain_graph=False):
-        if self.has_pre:
-            return
         jt.flags.node_order = 1
         params_has_grad = []
         for pg in self.param_groups:
@@ -16,7 +14,7 @@ class Optimizer(jt.optim.Optimizer):
                 if p.requires_grad:
                     params_has_grad.append(p)
         jt.sync(params_has_grad)
-        self.has_pre = True
+        self.n_step += 1
 
     def zero_grad(self):
         for pg in self.param_groups:
@@ -25,7 +23,6 @@ class Optimizer(jt.optim.Optimizer):
 
     def post_step(self):
         jt.flags.node_order = 0
-        self.has_pre = False
 
     def clip_grad_norm(self, max_norm:float, norm_type:int=2):
         r"""Clips gradient norm of this optimizer.
@@ -74,7 +71,6 @@ class AdamW(Optimizer):
         self.weight_decay = weight_decay
 
         self.use_fp32 = use_fp32
-        self.has_pre = False
         # assert weight_decay==0, "weight_decay is not supported yet"
         
         # initialize required arguments for each param_groups

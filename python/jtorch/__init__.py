@@ -39,9 +39,6 @@ def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
         has_dtype = "dtype" in get_args_names(func)
-        # has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
-        # if func.__name__ in ["zeros", "ones"]:
-        #     has_dtype = True
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
@@ -55,16 +52,18 @@ def wrapper(func):
             del kw["device"]
         args, kw = handle_dtype(args, kw, dtype)
         ret = func(*args, **kw)
-        if requires_grad is not None:
-            ret.requires_grad = requires_grad
-        if dtype is not None:
-            ret.astype(dtype)
+        if isinstance(ret, jt.Var):
+            if requires_grad is not None:
+                ret.requires_grad = requires_grad
+            if dtype is not None:
+                ret.astype(dtype)
         return ret
     return inner
         
 
 import inspect
 _wrapper_keys = set(["shape", "start", "size"])
+_wrapper_keys.add("x")
 for k,v in list(globals().items()):
     if callable(v) and not isinstance(v, type):
         try:
@@ -266,9 +265,6 @@ bfloat16 = "bfloat16" # TODO
 complex64 = "complex64" # TODO
 complex128 = "complex128" # TODO
 
-# def load(path, map_location="cpu"):
-#     return jt.load(path)
-
 def load(path,**kwargs):
     def _to_jittor(data):
         if isinstance(data,dict):
@@ -288,9 +284,6 @@ def is_tensor(x):
 manual_seed = jt.set_global_seed
 jt.flags.amp_level = 3
 Size = jt.NanoVector
-
-
-
 
 class Generator:
     def manual_seed(self,seed):

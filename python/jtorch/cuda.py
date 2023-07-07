@@ -39,6 +39,9 @@ BoolTensor = jt.bool
 manual_seed = jt.set_global_seed
 manual_seed_all = jt.set_global_seed
 
+def synchronize():
+    jt.sync_all(True)
+
 class Event:
     pass
 
@@ -48,22 +51,6 @@ class Stream:
 from typing import Any
 
 from .gradscaler import GradScaler
-# class GradScaler:
-    
-#     def scale(self,outputs):
-#         return outputs
-    
-#     def unscale_(self,optimizer):
-#         pass
-
-#     def get_scale(self,):
-#         return 1.0
-    
-#     def step(self,optimizer,*args,**kwargs):
-#         optimizer.step(*args,**kwargs)
-
-#     def update(self,new_scale=None):
-#         pass
 
 class autocast:
     def __init__(self,**kwargs):
@@ -74,5 +61,4 @@ class autocast:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
         pass
-
 
