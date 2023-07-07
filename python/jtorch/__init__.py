@@ -30,10 +30,18 @@ def handle_dtype(args, kw, dtype):
             kw = { k:convert(v) for k,v in kw.items() }
     return args, kw
 
+def get_args_names(func):
+    import inspect
+    spec = inspect.getfullargspec(func)
+    return spec[0] + spec[4]
+
 def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
-        has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
+        has_dtype = "dtype" in get_args_names(func)
+        # has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
+        # if func.__name__ in ["zeros", "ones"]:
+        #     has_dtype = True
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
@@ -301,3 +309,12 @@ def set_default_dtype(dtype):
     _default_type = dtype
 
 dtype = JDType
+
+def div(x,y,rounding_mode="floor"):
+    assert rounding_mode == "floor"
+    z = (x / y)
+    if rounding_mode == "floor":
+        z = z.floor()    
+    if x.dtype == "int32" and (isinstance(y,org_int) or y.dtype == "int32"):
+        z = z.int32()
+    return z
