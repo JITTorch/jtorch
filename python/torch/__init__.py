@@ -13,6 +13,8 @@ def load_mod(name):
 
 autograd = sys.modules["torch.autograd"] = load_mod("jtorch.autograd")
 sys.modules["torch.cuda"] = load_mod("jtorch.cuda")
+sys.modules["torch.npu"] = load_mod("jtorch.cuda")
+npu = sys.modules["torch.npu"]
 sys.modules["torch.nn"] = load_mod("jtorch.nn")
 sys.modules["torch.nn.functional"] = load_mod("jtorch.nn")
 sys.modules["torch.nn.modules"] = load_mod("jtorch.nn")
