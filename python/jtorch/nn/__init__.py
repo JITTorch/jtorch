@@ -12,11 +12,15 @@ for k,v in jt.nn.__dict__.items():
         globals()[k] = make_module(v)
 
 class Module(ModuleMisc, jt.Module):
+    
     def __call__(self, *args, **kw):
         return self.forward(*args, **kw)
 
     def execute(self, *args, **kw):
         return self.forward(*args, **kw)
+
+
+    
 
 def Parameter(x:Tensor, requires_grad:bool=True) -> Tensor:
     x = x.clone()
@@ -46,3 +50,5 @@ class Flatten(Module):
         return x.flatten(self.start_dim, self.end_dim)
 
 _BatchNorm = None
+
+from . import utils

@@ -16,6 +16,10 @@ def get_rng_state(device=None):
 def current_device():
     return jtorch.device("cuda")
 
+def mem_get_info(i):
+    return ("75GB",)
+
+
 class Generator:
     def __init__(self):
         pass
@@ -33,6 +37,28 @@ HalfTensor = jt.float16
 BoolTensor = jt.bool
 
 manual_seed = jt.set_global_seed
+manual_seed_all = jt.set_global_seed
 
 def synchronize():
     jt.sync_all(True)
+
+class Event:
+    pass
+
+class Stream:
+    pass
+
+from typing import Any
+
+from .gradscaler import GradScaler
+
+class autocast:
+    def __init__(self,**kwargs):
+        pass 
+
+    def __enter__(self,):
+        pass 
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
+        pass
+

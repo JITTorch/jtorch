@@ -13,7 +13,7 @@ class Dataset:
 class DataLoader(JDataset):
     def __init__(self, dataset: Dataset, 
                  batch_size: Optional[int] = 1,
-                 shuffle: Optional[bool] = None, 
+                 shuffle: Optional[bool] = False, 
                  sampler = None,
                  batch_sampler = None,
                  num_workers: int = 0, 
@@ -59,9 +59,17 @@ class DataLoader(JDataset):
 
     def __getitem__(self, i):
         return self.dataset[i]
+    
+class RandomSampler(jt.dataset.RandomSampler):
+    def __init__(self,dataset,generator=None,**kwargs):
+        super().__init__(dataset,**kwargs)
 
 BatchSampler = jt.dataset.BatchSampler
-RandomSampler = jt.dataset.RandomSampler
+# RandomSampler = jt.dataset.RandomSampler
 Sampler = jt.dataset.Sampler
 SequentialSampler = jt.dataset.SequentialSampler
 SubsetRandomSampler = jt.dataset.SubsetRandomSampler
+
+DistributedSampler = jt.dataset.Sampler
+IterableDataset = Dataset
+TensorDataset = Dataset

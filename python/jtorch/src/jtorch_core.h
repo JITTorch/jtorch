@@ -6,6 +6,7 @@
 namespace jittor {
 
 // @pyjt(device)
+// @attrs(heaptype)
 struct Device {
     string name;
     

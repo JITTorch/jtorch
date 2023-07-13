@@ -12,6 +12,9 @@ import jtorch.compiler
 import jtorch_core
 from jtorch_core import *
 
+device.__reduce__ = lambda self: (device, (self.type,))
+
+
 def handle_dtype(args, kw, dtype):
     def convert(x):
         if isinstance(x, jt.Var):
@@ -27,10 +30,15 @@ def handle_dtype(args, kw, dtype):
             kw = { k:convert(v) for k,v in kw.items() }
     return args, kw
 
+def get_args_names(func):
+    import inspect
+    spec = inspect.getfullargspec(func)
+    return spec[0] + spec[4]
+
 def wrapper(func):
     has_dtype = False
     if hasattr(func, "__code__"):
-        has_dtype = "dtype" in func.__code__.co_varnames[:func.__code__.co_argcount]
+        has_dtype = "dtype" in get_args_names(func)
     def inner(*args, **kw):
         requires_grad = None
         dtype = None
@@ -102,6 +110,10 @@ def tensor_type(x: Var, dtype=None, **kwargs):
         return x.dtype
 Tensor.type = tensor_type
 
+def is_floating_point(x: Var):
+    return "float" in str(x.dtype)
+Tensor.is_floating_point = is_floating_point
+
 from . import autograd
 from .autograd import *
 
@@ -119,10 +131,12 @@ class ModuleMisc:
     def load_state_dict(self, state_dict, strict=False):
         return super().load_state_dict(state_dict)
 
-    def to(self, device):
+    def to(self, device,dtype=None):
         ''' do nothing but return its self'''
         return self
-
+    def register_parameter(self,name,data):
+        self.name = data
+        
 def make_module(cls):
     class TMod(ModuleMisc, cls):
         def __init__(self, *args, **kw):
@@ -236,6 +250,8 @@ class JDType:
         return self.func(*args, **kw)
     def __str__(self):
         return self.str
+    def is_floating_point(self):
+        return "float" in str(self.str)
 
 int8 = JDType(jt.int8, "torch.int8")
 int16 = JDType(jt.int16, "torch.int16")
@@ -246,9 +262,21 @@ half = float16 = JDType(jt.float16, "torch.float16")
 float = float32 = JDType(jt.float32, "torch.float32")
 double = float64 = JDType(jt.float64, "torch.float64")
 bfloat16 = "bfloat16" # TODO
+complex64 = "complex64" # TODO
+complex128 = "complex128" # TODO
 
-def load(path, map_location="cpu"):
-    return jt.load(path)
+def load(path,**kwargs):
+    def _to_jittor(data):
+        if isinstance(data,dict):
+            return {k:_to_jittor(d) for k,d in data.items()}
+        if isinstance(data,list):
+            return [_to_jittor(d) for d in data]
+        if isinstance(data,np.ndarray):
+            return jt.array(data)
+        return data
+    data = jt.load(path)
+    
+    return _to_jittor(data)
 
 def is_tensor(x):
     return isinstance(x, Tensor)
@@ -256,3 +284,30 @@ def is_tensor(x):
 manual_seed = jt.set_global_seed
 jt.flags.amp_level = 3
 Size = jt.NanoVector
+
+class Generator:
+    def manual_seed(self,seed):
+        pass
+
+
+from . import fx
+
+
+_default_type = "float32"
+
+def get_default_dtype():
+    return _default_type
+def set_default_dtype(dtype):
+    global _default_type
+    _default_type = dtype
+
+dtype = JDType
+
+def div(x,y,rounding_mode="floor"):
+    assert rounding_mode == "floor"
+    z = (x / y)
+    if rounding_mode == "floor":
+        z = z.floor()    
+    if x.dtype == "int32" and (isinstance(y,org_int) or y.dtype == "int32"):
+        z = z.int32()
+    return z
