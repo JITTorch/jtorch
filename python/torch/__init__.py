@@ -16,6 +16,8 @@ autograd = sys.modules["torch.autograd"] = load_mod("jtorch.autograd")
 cuda = load_mod("jtorch.cuda")
 cuda.amp = cuda
 sys.modules["torch.cuda"] = load_mod("jtorch.cuda")
+sys.modules["torch.npu"] = load_mod("jtorch.cuda")
+npu = sys.modules["torch.npu"]
 sys.modules["torch.cuda.amp"] = load_mod("jtorch.cuda")
 sys.modules['torch.optim'] = load_mod("jtorch.optim")
 sys.modules['torch.optim.lr_scheduler'] = load_mod("jtorch.optim")
