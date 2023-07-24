@@ -25,6 +25,8 @@ jtorch.optim.lr_scheduler = jtorch.optim
 
 sys.modules["torch.nn"] = load_mod("jtorch.nn")
 sys.modules["torch.nn.functional"] = load_mod("jtorch.nn")
+sys.modules["torch.nn.parallel"] = load_mod("jtorch.distributed")
+jtorch.nn.parallel = load_mod("jtorch.distributed")
 sys.modules["torch.nn.modules"] = load_mod("jtorch.nn")
 sys.modules['torch.nn.modules.module'] = load_mod("jtorch.nn")
 jtorch.nn.module = jtorch.nn

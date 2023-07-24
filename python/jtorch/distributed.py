@@ -1,5 +1,6 @@
 import datetime
 from enum import Enum
+import jittor as jt
 
 
 class DistributedDataParallel:
@@ -44,3 +45,9 @@ class Join:
 
 dist_backend = Enum("dist_backend", ("GLOO", "MPI", "NCCL"))
 _backend = dist_backend.NCCL
+
+def is_mpi_available():
+    return jt.in_mpi
+
+def DistributedDataParallel(model, *args, **kw):
+    return model

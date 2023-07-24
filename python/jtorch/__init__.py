@@ -13,6 +13,7 @@ import jtorch_core
 from jtorch_core import *
 
 device.__reduce__ = lambda self: (device, (self.type,))
+jt.jittor_core.device = device
 
 
 def handle_dtype(args, kw, dtype):
