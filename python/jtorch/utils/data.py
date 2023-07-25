@@ -33,6 +33,7 @@ class DataLoader(JDataset):
                          drop_last=drop_last)
         
         unsupported_kwargs = {
+            "sampler": sampler, 
             "batch_sampler": batch_sampler, 
             "pin_memory": pin_memory, 
             "timeout": timeout,
@@ -49,8 +50,7 @@ class DataLoader(JDataset):
         self.dataset = dataset
         self.collate_fn = collate_fn
         self.total_len = len(dataset)
-        self.sampler = sampler
-
+        
     def collate_batch(self, batch):
         if self.collate_fn is not None:
             return self.collate_fn(batch)
@@ -59,30 +59,17 @@ class DataLoader(JDataset):
 
     def __getitem__(self, i):
         return self.dataset[i]
-
-class RandomSampler(jt.dataset.RandomSampler):
-    def __init__(self, dataset, generator=None, **kwargs):
-        super().__init__(dataset, **kwargs)
-
-class DistributedSampler(jt.dataset.Sampler):
-    def __init__(self, sampler: RandomSampler):
-        assert(isinstance(sampler, RandomSampler))
-        self.sampler = sampler
-
-    def set_epoch(self, epoch: int):
-        ### do nothing, let jittor's inner dataset handle 
-        pass
-
-    def __iter__(self):
-        return self.sampler.__iter__()
     
-    def __len__(self):
-        return self.sampler.__len__()
+class RandomSampler(jt.dataset.RandomSampler):
+    def __init__(self,dataset,generator=None,**kwargs):
+        super().__init__(dataset,**kwargs)
 
 BatchSampler = jt.dataset.BatchSampler
+# RandomSampler = jt.dataset.RandomSampler
 Sampler = jt.dataset.Sampler
 SequentialSampler = jt.dataset.SequentialSampler
 SubsetRandomSampler = jt.dataset.SubsetRandomSampler
 
+DistributedSampler = jt.dataset.Sampler
 IterableDataset = Dataset
 TensorDataset = Dataset
