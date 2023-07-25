@@ -11,7 +11,7 @@ struct Device {
     string name;
     
     // @pyjt(__init__)
-    Device(const string& name);
+    Device(const string& name, int ordinal=0);
     // @pyjt(__get__type, __str__)
     inline string get_type() {return name;}
     // @pyjt(__get__index)
