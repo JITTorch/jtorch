@@ -12,7 +12,7 @@ void pyjt_def_all(PyObject* m);
 
 EXTERN_LIB void setter_use_cuda(int value);
 
-Device::Device(const string& name) : name(name) {
+Device::Device(const string& name, int ordinal) : name(name) {
     if (startswith(name, "cpu"))
         setter_use_cuda(0);
     else
