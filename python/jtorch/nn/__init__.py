@@ -49,6 +49,11 @@ class Flatten(Module):
     def forward(self, x) -> jt.Var:
         return x.flatten(self.start_dim, self.end_dim)
 
+class _IncompatibleKeys:
+    def __init__(self, missing_keys, unexpected_keys):
+        self.missing_keys = missing_keys
+        self.unexpected_keys = unexpected_keys
+
 _BatchNorm = None
 
 from . import utils

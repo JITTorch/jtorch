@@ -30,6 +30,7 @@ jtorch.nn.parallel = load_mod("jtorch.distributed")
 sys.modules["torch.nn.modules"] = load_mod("jtorch.nn")
 sys.modules['torch.nn.modules.module'] = load_mod("jtorch.nn")
 jtorch.nn.module = jtorch.nn
+jtorch.nn.modules = jtorch.nn
 sys.modules["torch.nn.parameter"] = load_mod("jtorch.nn")
 jtorch.nn.parameter = jtorch.nn
 sys.modules["torch.nn.utils"] = load_mod("jtorch.nn")
