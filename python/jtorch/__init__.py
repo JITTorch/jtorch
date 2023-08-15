@@ -13,6 +13,7 @@ import jtorch_core
 from jtorch_core import *
 
 device.__reduce__ = lambda self: (device, (self.type,))
+device.__module__ = "jtorch"
 jt.jittor_core.device = device
 
 

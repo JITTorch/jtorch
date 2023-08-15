@@ -2,6 +2,7 @@ import jittor as jt
 import jittor.dataset
 from jittor.dataset import Dataset as JDataset
 
+from collections import namedtuple
 from typing import Any, Callable, Iterable, Optional, Sequence, Union
 
 
@@ -9,9 +10,13 @@ class Dataset:
     def __getitem__(self, index):
         raise NotImplementedError
 
+class IterableDataset:
+    def __iter__(self):
+        raise NotImplementedError
+
 
 class DataLoader(JDataset):
-    def __init__(self, dataset: Dataset, 
+    def __init__(self, dataset,
                  batch_size: Optional[int] = 1,
                  shuffle: Optional[bool] = False, 
                  sampler = None,
@@ -48,8 +53,13 @@ class DataLoader(JDataset):
 
         self.dataset = dataset
         self.collate_fn = collate_fn
-        self.total_len = len(dataset)
         self.sampler = sampler
+
+        if not isinstance(dataset, IterableDataset):
+            self.total_len = len(dataset)
+        else:
+            # TODO: support multiple worker for iterable dataset
+            assert(num_workers == 0)
 
     def collate_batch(self, batch):
         if self.collate_fn is not None:
@@ -59,6 +69,31 @@ class DataLoader(JDataset):
 
     def __getitem__(self, i):
         return self.dataset[i]
+    
+    def __iter__(self):
+        if isinstance(self.dataset, IterableDataset):
+            return self.inner_iter()
+        else:
+            return super().__iter__()
+
+    def inner_iter(self):
+        current_batch = []
+
+        for element in self.dataset:
+            current_batch.append(element)
+
+            if len(current_batch) == self.batch_size:
+                current_batch = self.collate_batch(current_batch)
+                yield self.to_jittor(current_batch)
+                current_batch = []
+        
+        if not self.drop_last and len(current_batch) > 0:
+            current_batch = self.collate_batch(current_batch)
+            yield self.to_jittor(current_batch)
+
+def get_worker_info():
+    # always return the fake worker info
+    return namedtuple('WorkerInfo', 'id num_workers')(0, 1)
 
 class RandomSampler(jt.dataset.RandomSampler):
     def __init__(self, dataset, generator=None, **kwargs):
@@ -84,5 +119,4 @@ Sampler = jt.dataset.Sampler
 SequentialSampler = jt.dataset.SequentialSampler
 SubsetRandomSampler = jt.dataset.SubsetRandomSampler
 
-IterableDataset = Dataset
 TensorDataset = Dataset
