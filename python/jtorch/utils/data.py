@@ -79,12 +79,19 @@ class DataLoader(JDataset):
     def inner_iter(self):
         current_batch = []
 
+        if jt.world_size > 1:
+            assert(self.batch_size % jt.world_size == 0, f"IterableDataset does not support a batch size ({self.batch_size}) that is not evenly divisible by the number of processes f{jt.world_size}")
+            real_batch_size = int(self.batch_size / jt.world_size)
+        else:
+            real_batch_size = self.batch_size
+
         for element in self.dataset:
             current_batch.append(element)
 
-            if len(current_batch) == self.batch_size:
+            if len(current_batch) == real_batch_size:
                 current_batch = self.collate_batch(current_batch)
-                yield self.to_jittor(current_batch)
+                current_batch = self.to_jittor(current_batch)
+                yield current_batch
                 current_batch = []
         
         if not self.drop_last and len(current_batch) > 0:
