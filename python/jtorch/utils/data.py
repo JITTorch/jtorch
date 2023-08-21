@@ -80,7 +80,8 @@ class DataLoader(JDataset):
         current_batch = []
 
         if jt.world_size > 1:
-            assert(self.batch_size % jt.world_size == 0, f"IterableDataset does not support a batch size ({self.batch_size}) that is not evenly divisible by the number of processes f{jt.world_size}")
+            assert self.batch_size % jt.world_size == 0, \
+                f"IterableDataset does not support a batch size ({self.batch_size}) that is not evenly divisible by the number of processes f{jt.world_size}"
             real_batch_size = int(self.batch_size / jt.world_size)
         else:
             real_batch_size = self.batch_size
