@@ -66,3 +66,7 @@ sys.modules["torchvision.transforms"] = load_mod("jtorch.vision.transforms")
 sys.modules["torchvision.transforms.functional"] = load_mod("jtorch.vision.transforms")
 jtorch.vision.transforms.functional = jtorch.vision.transforms
 
+import jittor
+_dtype=jittor.dtype
+
+from_numpy=jittor.array
