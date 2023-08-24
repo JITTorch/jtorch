@@ -68,6 +68,6 @@ jtorch.vision.transforms.functional = jtorch.vision.transforms
 
 import jittor
 _dtype=jittor.dtype
-
+softmax=jittor.nn.softmax
 from_numpy=jittor.array
 
