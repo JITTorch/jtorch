@@ -107,6 +107,13 @@ class RandomSampler(jt.dataset.RandomSampler):
     def __init__(self, dataset, generator=None, **kwargs):
         super().__init__(dataset, **kwargs)
 
+    def __iter__(self):
+        if getattr(self.dataset, "support_random_access", True):
+            return super().__iter__()
+        else:
+            self.dataset.shuffle()
+            return iter(range(self.dataset.__real_len__() if hasattr(self.dataset,"__real_len__") else self.dataset.__len__()))
+
 class DistributedSampler(jt.dataset.Sampler):
     def __init__(self, sampler: RandomSampler):
         assert(isinstance(sampler, RandomSampler))
