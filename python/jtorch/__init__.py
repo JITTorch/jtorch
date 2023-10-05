@@ -157,6 +157,9 @@ def make_module(cls):
                     v.assign(v.cast(dtype))
         def __call__(self, *args, **kw):
             args, kw = handle_dtype(args, kw, self._dtype)
+            # if forward is override by user, call forward
+            if self.__class__.forward is not TMod.forward:
+                return self.forward(*args, **kw)
             return self.execute(*args, **kw)
         def forward(self, *args, **kw):
             args, kw = handle_dtype(args, kw, self._dtype)
