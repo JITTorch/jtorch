@@ -347,8 +347,8 @@ def div(x,y,rounding_mode="floor"):
 def randn(*args,**kw):
     print("randn")
     wrap_randn = wrapper(jt.randn)
-    generator = kw['generator']
-    del kw['generator']
+    generator = kw.get('generator',None)
+    kw.pop('generator',None)
     if 'layout' in kw:
         del kw['layout']
     if generator is not None and generator.seed is not None:
@@ -358,8 +358,8 @@ def randn(*args,**kw):
 def rand(*args,**kw):
     print("rand")
     wrap_rand = wrapper(jt.rand)
-    generator = kw['generator']
-    del kw['generator']
+    generator = kw.get('generator',None)
+    kw.pop('generator',None)
     if 'layout' in kw:
         del kw['layout']
     if generator is not None and generator.seed is not None:
