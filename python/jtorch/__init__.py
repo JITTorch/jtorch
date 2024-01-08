@@ -3,6 +3,8 @@ os.environ["FIX_TORCH_ERROR"] = "0"
 
 import jittor as jt
 from jittor import *
+from typing import Tuple
+
 org_int = int = type(1)
 org_float = float = type(1.0)
 org_bool = bool = type(True)
@@ -52,6 +54,8 @@ def wrapper(func):
             del kw["dtype"]
         if "device" in kw:
             del kw["device"]
+        if 'pin_memory' in kw:
+            del kw['pin_memory']
         args, kw = handle_dtype(args, kw, dtype)
         ret = func(*args, **kw)
         if isinstance(ret, jt.Var):
@@ -119,7 +123,25 @@ Tensor.is_floating_point = is_floating_point
 from . import autograd
 from .autograd import *
 
-tensor = wrapper(array)
+def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
+    if isinstance(data,list):
+        data_list = []
+        check = True
+        for p in data:
+            if isinstance(p, Tensor) and p.numel()==1:
+                data_list.append(p.item())
+            elif isinstance(p, (org_int,org_float)):
+                data_list.append(p)
+            else:
+                check = False
+                break
+        if check:
+            data = data_list
+    return wrapper(array)(data, dtype=dtype, device=device, requires_grad=requires_grad, pin_memory=pin_memory)
+
+# tensor = wrapper(array)
+from_numpy = wrapper(array)
+strided = None
 
 def mod_zero_grad(self):
     for p in self.parameters():
@@ -245,6 +267,7 @@ LongTensor = jt.int64
 FloatTensor = jt.float
 HalfTensor = jt.float16
 BoolTensor = jt.bool
+IntTensor = jt.int32
 
 class JDType:
     def __init__(self, func, str):
@@ -291,8 +314,11 @@ jt.flags.amp_level = 3
 Size = jt.NanoVector
 
 class Generator:
+    def __init__(self,*args,**kw) -> None:
+        self.seed = None
     def manual_seed(self,seed):
-        pass
+        self.seed = seed
+
 
 
 from . import fx
@@ -316,3 +342,72 @@ def div(x,y,rounding_mode="floor"):
     if x.dtype == "int32" and (isinstance(y,org_int) or y.dtype == "int32"):
         z = z.int32()
     return z
+
+
+def randn(*args,**kw):
+    print("randn")
+    wrap_randn = wrapper(jt.randn)
+    generator = kw.get('generator',None)
+    kw.pop('generator',None)
+    if 'layout' in kw:
+        del kw['layout']
+    if generator is not None and generator.seed is not None:
+        jt.set_global_seed(generator.seed)
+    return wrap_randn(*args,**kw)
+
+def rand(*args,**kw):
+    print("rand")
+    wrap_rand = wrapper(jt.rand)
+    generator = kw.get('generator',None)
+    kw.pop('generator',None)
+    if 'layout' in kw:
+        del kw['layout']
+    if generator is not None and generator.seed is not None:
+        jt.set_global_seed(generator.seed)
+    return wrap_rand(*args,**kw)
+
+
+
+def set_default_tensor_type(t: type or str):
+    if isinstance(t, str):
+        info = t.split(".")
+        if len(info) == 3 and info[1] == 'cuda':
+            jt.flags.use_cuda = 1
+    #TODO: type
+
+
+
+def max(inputs:Tensor,other:Tensor= None,dim:int = None,keepdim:bool=False,*,out=None)->Tensor:
+    #TODO: need polish overload 
+    if isinstance(other,Tensor):
+        return jt.maximum(inputs,other)
+    assert(other is None)
+    return jt.max(inputs,dim,keepdim)
+Tensor.max = max
+
+
+def sum(input, dim=None, keepdim=False)->Tensor:
+    if dim is None:
+        return jt.sum(input)
+    return jt.sum(input,dim,keepdim)
+Tensor.sum = sum
+
+def min(inputs:Tensor,other:Tensor= None,dim:int = None,keepdim:bool=False,*,out=None)->Tensor:
+    #TODO: need polish overload 
+    if isinstance(other,Tensor):
+        return jt.minimum(inputs,other)
+    assert(other is None)
+    return jt.min(inputs,dim,keepdim)
+Tensor.min = min
+
+def sort(input, dim=-1, descending=False, stable=False)->Tuple[Tensor]:
+    index,value = jt.argsort(input,dim,descending)
+    return value, index
+Tensor.sort = sort
+
+def std(input, dim, unbiased=False, keepdim=False,)->Tensor:
+    n = input.shape[dim]
+    if unbiased:
+        n = n - 1
+    return (((input - input.mean(dim=dim,keepdims =keepdim).unsqueeze(dim)).sqr().sum(dim=dim))/n).sqrt()
+Tensor.std = std
