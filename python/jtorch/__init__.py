@@ -155,11 +155,16 @@ class ModuleMisc:
     def load_state_dict(self, state_dict, strict=False):
         return super().load_state_dict(state_dict)
 
-    def to(self, device,dtype=None):
+    def to(self, device=None,dtype=None):
         ''' do nothing but return its self'''
         return self
     def register_parameter(self,name,data):
         self.name = data
+
+    def buffers(self):
+        for _, buf in self.named_buffers():
+            yield buf
+
         
 def make_module(cls):
     class TMod(ModuleMisc, cls):
@@ -345,7 +350,6 @@ def div(x,y,rounding_mode="floor"):
 
 
 def randn(*args,**kw):
-    print("randn")
     wrap_randn = wrapper(jt.randn)
     generator = kw.get('generator',None)
     kw.pop('generator',None)
@@ -376,38 +380,24 @@ def set_default_tensor_type(t: type or str):
     #TODO: type
 
 
-
-def max(inputs:Tensor,other:Tensor= None,dim:int = None,keepdim:bool=False,*,out=None)->Tensor:
-    #TODO: need polish overload 
-    if isinstance(other,Tensor):
-        return jt.maximum(inputs,other)
-    assert(other is None)
-    return jt.max(inputs,dim,keepdim)
-Tensor.max = max
+def clamp(x, min=None, max=None):
+    return jt.clamp(x, min, max)
 
 
-def sum(input, dim=None, keepdim=False)->Tensor:
-    if dim is None:
-        return jt.sum(input)
-    return jt.sum(input,dim,keepdim)
-Tensor.sum = sum
+def to(x,*args,**kw):
+    device = None
+    if len(args) == 1:
+        device = args[0]
+        if isinstance(device, jt.NanoString) or callable(device):
+            return jt.to(x,*args,**kw)
+        if 'cpu' in str(device):
+            args = []
+    device = kw.get("device",None)
+    if 'cpu' in str(device):
+        kw.pop('device',None)
+        print('cpu11111')
+        # print(kw)
+    return jt.to(x,*args,**kw)
+Tensor.to = conflict_wrapper(jt.to, to)
 
-def min(inputs:Tensor,other:Tensor= None,dim:int = None,keepdim:bool=False,*,out=None)->Tensor:
-    #TODO: need polish overload 
-    if isinstance(other,Tensor):
-        return jt.minimum(inputs,other)
-    assert(other is None)
-    return jt.min(inputs,dim,keepdim)
-Tensor.min = min
-
-def sort(input, dim=-1, descending=False, stable=False)->Tuple[Tensor]:
-    index,value = jt.argsort(input,dim,descending)
-    return value, index
-Tensor.sort = sort
-
-def std(input, dim, unbiased=False, keepdim=False,)->Tensor:
-    n = input.shape[dim]
-    if unbiased:
-        n = n - 1
-    return (((input - input.mean(dim=dim,keepdims =keepdim).unsqueeze(dim)).sqr().sum(dim=dim))/n).sqrt()
-Tensor.std = std
+mm = wrapper(jt.matmul)

@@ -66,3 +66,4 @@ sys.modules["torchvision.transforms"] = load_mod("jtorch.vision.transforms")
 sys.modules["torchvision.transforms.functional"] = load_mod("jtorch.vision.transforms")
 jtorch.vision.transforms.functional = jtorch.vision.transforms
 
+sys.modules['torch.fft'] = load_mod("jtorch.fft")

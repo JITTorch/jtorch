@@ -2,6 +2,8 @@ import jtorch
 import jittor as jt
 from jtorch import make_module, Tensor, ModuleMisc, wrapper
 from . import init
+from jittor import Function
+import warnings
 
 for k,v in jt.nn.__dict__.items():
     if callable(v):
@@ -57,3 +59,4 @@ class _IncompatibleKeys:
 _BatchNorm = None
 
 from . import utils
+normalize = wrapper(jt.normalize)
