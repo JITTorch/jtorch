@@ -401,3 +401,11 @@ def to(x,*args,**kw):
 Tensor.to = conflict_wrapper(jt.to, to)
 
 mm = wrapper(jt.matmul)
+
+def _data_get(x):
+    return x
+
+def _data_set(x, value):
+    x.assign(value)
+    
+Tensor.data = property(_data_get, _data_set)
