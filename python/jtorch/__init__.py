@@ -395,7 +395,7 @@ def to(x,*args,**kw):
     device = kw.get("device",None)
     if 'cpu' in str(device):
         kw.pop('device',None)
-        print('cpu11111')
+        print("to cpu")
         # print(kw)
     return jt.to(x,*args,**kw)
 Tensor.to = conflict_wrapper(jt.to, to)
