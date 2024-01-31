@@ -16,7 +16,7 @@ for k,v in jt.nn.__dict__.items():
 class Module(ModuleMisc, jt.Module):
     
     def __call__(self, *args, **kw):
-        return self.forward(*args, **kw)
+        return self.execute(*args, **kw)
 
     def execute(self, *args, **kw):
         return self.forward(*args, **kw)
