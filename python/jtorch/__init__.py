@@ -297,6 +297,23 @@ double = float64 = JDType(jt.float64, "torch.float64")
 bfloat16 = "bfloat16" # TODO
 complex64 = "complex64" # TODO
 complex128 = "complex128" # TODO
+def get_JDtype(dtype):
+    if dtype=='float32' or dtype == jt.float32:
+        return float32
+    elif dtype=='float64' or dtype == jt.float64:
+        return float64
+    elif dtype=='float16' or dtype == jt.float16:
+        return float16
+    elif dtype=='int32' or dtype == jt.int32:
+        return int32
+    elif dtype=='int64' or dtype == jt.int64:
+        return int64
+    elif dtype=='int16' or dtype == jt.int16:
+        return int16
+    elif dtype=='int8' or dtype == jt.int8:
+        return int8
+    else:
+        raise Exception("dtype {} not supported".format(dtype))
 
 def load(path,**kwargs):
     def _to_jittor(data):
